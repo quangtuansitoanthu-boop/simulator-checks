@@ -12,7 +12,8 @@ jobs:
     env:
       JAVA_HOME: /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
     steps:
-      - name: Install and launch verified app
+      - name: Boot simulator and verify archive
+        timeout-minutes: 7
         shell: bash
         run: |
           set -euo pipefail
@@ -22,13 +23,18 @@ jobs:
           unzip -q app.zip -d app
           udid=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k in sorted(d,reverse=True) if "iOS" in k for x in d[k] if x["name"].startswith("iPhone")))')
           echo "SIM_ID=$udid" >> "$GITHUB_ENV"
-          app=$(find app -name '*.app' -type d -print -quit)
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
-          xcrun simctl spawn "$udid" defaults write NSGlobalDomain AppleLanguages -array vi
-          xcrun simctl install "$udid" "$app"
-          xcrun simctl launch "$udid" vn.quangtu.tutam -AppleLanguages '(vi)' -AppleLocale vi_VN
-          xcrun simctl io "$udid" screenshot evidence/launch.png
+      - name: Install QA bundle
+        timeout-minutes: 4
+        run: |
+          app=$(find app -name '*.app' -type d -print -quit)
+          xcrun simctl install "$SIM_ID" "$app"
+      - name: Launch the native app
+        timeout-minutes: 3
+        run: |
+          xcrun simctl launch "$SIM_ID" vn.quangtu.tutam -AppleLanguages '(vi)' -AppleLocale vi_VN
+          xcrun simctl io "$SIM_ID" screenshot evidence/launch.png
       - name: Run UI scenarios
         shell: bash
         run: |
