@@ -1,0 +1,93 @@
+name: iOS simulator QA
+on:
+  push:
+    paths: ['.github/workflows/ios-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 28
+    env:
+      JAVA_HOME: /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
+    steps:
+      - name: Install and launch verified app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence app
+          curl -fLsS --retry 3 -o app.zip 'https://github.com/quangtuansitoanthu-boop/simulator-checks/releases/download/qa-20261118/TuTap-routine-step-simulator.app.zip'
+          echo 'a5b10762fee32ac97205626e1cb69449551a6e3873b7d51c7722997817756511  app.zip' | shasum -a 256 -c
+          unzip -q app.zip -d app
+          udid=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k in sorted(d,reverse=True) if "iOS" in k for x in d[k] if x["name"].startswith("iPhone")))')
+          echo "SIM_ID=$udid" >> "$GITHUB_ENV"
+          app=$(find app -name '*.app' -type d -print -quit)
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl spawn "$udid" defaults write NSGlobalDomain AppleLanguages -array vi
+          xcrun simctl install "$udid" "$app"
+          xcrun simctl launch "$udid" vn.quangtu.tutam -AppleLanguages '(vi)' -AppleLocale vi_VN
+          xcrun simctl io "$udid" screenshot evidence/launch.png
+      - name: Run UI scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          export JAVA_HOME=$( /usr/libexec/java_home -v 17 )
+          export PATH="$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH"
+          curl -fsSL https://get.maestro.mobile.dev | bash
+          mkdir -p flows
+          cat > flows/routine.yaml <<'EOF'
+          appId: vn.quangtu.tutam
+          ---
+          - launchApp
+          - tapOn:
+              text: 'Không cho phép|Don.t Allow'
+              optional: true
+          - tapOn: 'Tu tập'
+          - scrollUntilVisible:
+              element: 'Thời khóa tu tập'
+              direction: DOWN
+          - tapOn: 'Thời khóa tu tập'
+          - tapOn: 'Tạo thời khóa mới'
+          - tapOn: 'Thêm bước'
+          - tapOn: 'Thiền định'
+          - tapOn: 'Thêm bước'
+          - tapOn: 'Lễ Phật & Sám Hối'
+          - tapOn: 'Lưu thời khóa'
+          - tapOn: 'Bắt đầu Thời khoá sáng'
+          - tapOn: 'Bắt đầu'
+          - tapOn: 'Kết thúc sớm'
+          - extendedWaitUntil:
+              visible: '.*Bước 2/2.*'
+              timeout: 20000
+          - takeScreenshot: evidence/routine-next-step
+          EOF
+          cat > flows/navigation.yaml <<'EOF'
+          appId: vn.quangtu.tutam
+          ---
+          - launchApp
+          - tapOn:
+              text: 'Không cho phép|Don.t Allow'
+              optional: true
+          - assertVisible: 'Cá nhân'
+          - tapOn: 'Kinh sách'
+          - assertVisible: 'Kinh sách'
+          - takeScreenshot: evidence/library
+          - tapOn: 'Tu tập'
+          - scrollUntilVisible:
+              element: 'Thời khóa tu tập'
+              direction: DOWN
+          - assertVisible: 'Thời khóa tu tập'
+          - takeScreenshot: evidence/practice
+          - tapOn: 'Cá nhân'
+          - assertVisible: 'Cá nhân'
+          - takeScreenshot: evidence/profile
+          EOF
+          maestro --device "$SIM_ID" test --format junit --output evidence/results.xml --debug-output evidence/debug flows
+      - name: Save test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-evidence
+          path: evidence/
