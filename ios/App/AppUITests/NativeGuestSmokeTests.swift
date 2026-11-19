@@ -403,33 +403,62 @@ class NativeGuestUITestCase: XCTestCase {
 final class NativeGuestSmokeTests: NativeGuestUITestCase {
 
     @MainActor
-    func testHomeScreenQuickActionsOpenMatchingScreens() {
+    private func verifyHomeQuickAction(labels: [String], headings: [String], coldStart: Bool = false) throws {
         let app = launchGuest()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let icon = springboard.icons.matching(NSPredicate(format: "label ==[c] %@", "Tu tập")).firstMatch
-        let scenarios: [([String], [String])] = [
-            (["Scriptures", "Kinh sách"], ["Kho Kinh Sách", "Scriptures & Books", "Scriptures"]),
-            (["Practice", "Tu tập"], ["Chế Độ Tu Tập", "Practice Mode", "Practice"]),
-            (["Dharma Talks", "Pháp thoại"], ["Kho Pháp Thoại", "Dharma Talks", "Dharma Talks Archive"]),
-            (["Widgets", "Widget"], ["Thêm widget lên màn hình chính", "Add a home-screen widget"])
-        ]
+        let icons = springboard.icons.matching(NSPredicate(format: "label IN[c] %@", ["Tu tập", "Tu tap"] as NSArray))
 
-        app.terminate()
-        for (labels, headings) in scenarios {
-            XCUIDevice.shared.press(.home)
-            XCTAssertTrue(springboard.wait(for: .runningForeground, timeout: 15))
-            for _ in 0..<4 where !icon.isHittable {
-                springboard.swipeLeft()
+        if coldStart { app.terminate() }
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(springboard.wait(for: .runningForeground, timeout: 15))
+        let viewport = springboard.frame
+        XCTAssertGreaterThan(viewport.width, 0)
+        XCTAssertGreaterThan(viewport.height, 0)
+
+        var iconFrame: CGRect?
+        for page in 0..<5 {
+            // An offscreen SpringBoard icon can be in the accessibility tree. On iOS 26.2,
+            // isHittable can throw while resolving the activation point of such an icon.
+            iconFrame = icons.allElementsBoundByIndex.map { $0.frame }.first {
+                $0.width > 0 && $0.height > 0 && viewport.contains($0)
             }
-            XCTAssertTrue(icon.isHittable, "The installed Tu tập app icon must be reachable")
-            icon.press(forDuration: 1.15)
-            let shortcut = springboard.buttons.matching(NSPredicate(format: "label IN[c] %@", labels as NSArray)).firstMatch
-            XCTAssertTrue(shortcut.waitForExistence(timeout: 10), "Expected the actual Home Screen action: \(labels[0])")
-            shortcut.tap()
-            XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
-            let heading = app.webViews.staticTexts.matching(NSPredicate(format: "label IN[c] %@", headings as NSArray)).firstMatch
-            XCTAssertTrue(heading.waitForExistence(timeout: 25), "Home Screen action must open \(headings[0])")
+            if iconFrame != nil { break }
+            if page < 4 { springboard.swipeLeft() }
         }
+
+        let frame = try XCTUnwrap(iconFrame, "The installed Tu tap icon must be on a visible Home Screen page")
+        let center = CGVector(dx: (frame.midX - viewport.minX) / viewport.width,
+                              dy: (frame.midY - viewport.minY) / viewport.height)
+        springboard.coordinate(withNormalizedOffset: center).press(forDuration: 1.15)
+        let shortcut = springboard.buttons.matching(NSPredicate(format: "label IN[c] %@", labels as NSArray)).firstMatch
+        XCTAssertTrue(shortcut.waitForExistence(timeout: 10), "Expected the actual Home Screen action: \(labels[0])")
+        shortcut.tap()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        let heading = app.webViews.staticTexts.matching(NSPredicate(format: "label IN[c] %@", headings as NSArray)).firstMatch
+        XCTAssertTrue(heading.waitForExistence(timeout: 25), "Home Screen action must open \(headings[0])")
+    }
+
+    @MainActor
+    func testHomeQuickActionScripturesColdStart() throws {
+        try verifyHomeQuickAction(labels: ["Scriptures", "Kinh sách"],
+                                  headings: ["Kho Kinh Sách", "Sutra and Book Library"], coldStart: true)
+    }
+
+    @MainActor
+    func testHomeQuickActionPractice() throws {
+        try verifyHomeQuickAction(labels: ["Practice", "Tu tập"], headings: ["Chế Độ Tu Tập", "Practice Mode", "Practice"])
+    }
+
+    @MainActor
+    func testHomeQuickActionDharmaTalks() throws {
+        try verifyHomeQuickAction(labels: ["Dharma Talks", "Pháp thoại"],
+                                  headings: ["Kho Pháp Thoại", "Dharma Talks", "Dharma Talks Archive"])
+    }
+
+    @MainActor
+    func testHomeQuickActionWidgetsGuide() throws {
+        try verifyHomeQuickAction(labels: ["Widgets", "Widget"],
+                                  headings: ["Thêm widget lên màn hình chính", "Add a home-screen widget"])
     }
 
     @MainActor

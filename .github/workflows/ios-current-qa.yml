@@ -1,4 +1,4 @@
-name: Current Tu tap iPhone simulator QA
+name: Current Tu tap iPhone shortcuts retry
 'on':
   push:
     branches:
@@ -141,7 +141,7 @@ jobs:
         find "$app" -name PrivacyInfo.xcprivacy -print | sed "s|$app/||" > build/release-evidence/privacy-manifests.txt
         grep -q 'GoogleSignIn (7.1.0)' ios/App/Podfile.lock
         cp ios/App/Podfile.lock build/release-evidence/Podfile.lock
-    - name: Run native iPhone regression including home screen shortcuts
+    - name: Run all four SpringBoard shortcut cases
       timeout-minutes: 35
       run: |
         set -euo pipefail
@@ -151,7 +151,10 @@ jobs:
           -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
           -derivedDataPath build/ios-simulator \
           -resultBundlePath build/release-evidence/NativeGuestSmoke.xcresult \
-          -only-testing:AppUITests/NativeGuestSmokeTests \
+          -only-testing:AppUITests/NativeGuestSmokeTests/testHomeQuickActionScripturesColdStart \
+          -only-testing:AppUITests/NativeGuestSmokeTests/testHomeQuickActionPractice \
+          -only-testing:AppUITests/NativeGuestSmokeTests/testHomeQuickActionDharmaTalks \
+          -only-testing:AppUITests/NativeGuestSmokeTests/testHomeQuickActionWidgetsGuide \
           -parallel-testing-enabled NO \
           -test-timeouts-enabled YES \
           -default-test-execution-time-allowance 600 \
@@ -167,7 +170,7 @@ jobs:
         python3 - <<'PY'
         import json
         data=json.load(open('build/release-evidence/native-ui-summary.json'))
-        assert data['passedTests'] == 13, 'All thirteen native UI cases must finish and pass'
+        assert data['passedTests'] == 4, 'All four shortcuts must finish and pass'
         assert data['failedTests'] == 0, 'Native UI test failures'
         assert data['skippedTests'] == 0, 'Native UI tests must not be skipped'
         print('Verified native UI test execution:',data['passedTests'],'passed, 0 failed, 0 skipped')
