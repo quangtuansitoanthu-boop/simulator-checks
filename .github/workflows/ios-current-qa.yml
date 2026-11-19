@@ -127,7 +127,8 @@ jobs:
         needle='        XCTAssertNotNil((editor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]),'
         assert source.count(needle) == 1
         diagnostic='        print("QA_COPY_EDITOR_VALUE: \(String(describing: editor.value))")\n        print("QA_COPY_EDITOR_AX: \(editor.debugDescription)")\n        evidence("copy-editor-after-native-typing", app: app)\n'
-        path.write_text(source.replace(needle, diagnostic+needle))
+        normalized=needle.replace('?.range', '?.replacingOccurrences(of: "\\n", with: "").range')
+        path.write_text(source.replace(needle, diagnostic+normalized))
         PY
     - name: Build iOS app, native plugins and UI tests once for the selected simulator
       run: |
