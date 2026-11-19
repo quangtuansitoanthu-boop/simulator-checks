@@ -1,4 +1,4 @@
-name: Current Tu tap iPhone scripture copying
+name: iOS media services reset regression
 'on':
   push:
     branches:
@@ -130,6 +130,349 @@ jobs:
         normalized=needle.replace('?.range', '?.replacingOccurrences(of: "\\n", with: "").range')
         path.write_text(source.replace(needle, diagnostic+normalized))
         PY
+    - name: Apply verified iOS audio fix and wire the Simulator test
+      run: |
+        set -euo pipefail
+        source_file='ios/App/App/DharmaAudioPlugin.swift'
+        echo '33840656975fbfc72092f1e7d0bda8c18b7b0e6fa3c9f31e9a21f30d53c64462  ios/App/App/DharmaAudioPlugin.swift' | shasum -a 256 -c
+        git apply - <<'SWIFT_FIX'
+        diff --git a/ios/App/App/DharmaAudioPlugin.swift b/ios/App/App/DharmaAudioPlugin.swift
+        index 471a836..e5095bd 100644
+        --- a/ios/App/App/DharmaAudioPlugin.swift
+        +++ b/ios/App/App/DharmaAudioPlugin.swift
+        @@ -15,7 +15,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+                 "cacheStatus", "cacheChunk", "backgroundStatus", "openBackgroundSettings", "selectPrincipal"
+             ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
+         
+        -    private let player = AVPlayer()
+        +    private var player = AVPlayer()
+             private var tracks: [JSObject] = []
+             private var album: JSObject = [:]
+             private var queueID = ""
+        @@ -61,14 +61,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+             private func configure() {
+                 guard !configured else { return }
+                 configured = true
+        -        player.actionAtItemEnd = .pause
+        -        timeStatus = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
+        -            DispatchQueue.main.async { self?.publish() }
+        -        }
+        -        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { [weak self] _ in
+        -            guard let self = self, !self.queueID.isEmpty else { return }
+        -            self.publish()
+        -        }
+        +        observePlayer()
+                 observe(NativeAudioSession.willStart) { [weak self] note in
+                     guard let self = self, note.object as AnyObject? !== self else { return }
+                     self.pausePlayback()
+        @@ -79,14 +72,64 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+                        reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue { self?.pausePlayback() }
+                 }
+                 observe(AVAudioSession.mediaServicesWereResetNotification) { [weak self] _ in
+        -            // Không tự phát lại sau khi audio service của hệ điều hành bị reset.
+        -            self?.pausePlayback()
+        -            self?.errorMessage = "Audio service was reset. Please play the track again."
+        -            self?.publish()
+        +            self?.recoverAfterMediaServicesReset()
+                 }
+                 configureCommands()
+             }
+         
+        +    private func observePlayer() {
+        +        let observedPlayer = player
+        +        observedPlayer.actionAtItemEnd = .pause
+        +        timeStatus = observedPlayer.observe(\.timeControlStatus, options: [.new]) { [weak self] observed, _ in
+        +            DispatchQueue.main.async { [weak observed] in
+        +                guard let self = self, self.player === observed else { return }
+        +                self.publish()
+        +            }
+        +        }
+        +        timeObserver = observedPlayer.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { [weak self, weak observedPlayer] _ in
+        +            guard let self = self, self.player === observedPlayer, !self.queueID.isEmpty else { return }
+        +            self.publish()
+        +        }
+        +    }
+        +
+        +    private func removePlayerObservers() {
+        +        timeStatus?.invalidate(); timeStatus = nil
+        +        if let token = timeObserver { player.removeTimeObserver(token) }
+        +        timeObserver = nil
+        +    }
+        +
+        +    private func recoverAfterMediaServicesReset() {
+        +        // Player cũ có thể mất thời gian hiện tại ngay khi dịch vụ dừng.
+        +        let position = pendingSeekPosition ?? retainedPosition
+        +        let volume = player.volume
+        +        let reachedEnd = ended
+        +        let pausedForSleep = pausedAtTrackEnd
+        +        tickSleep()
+        +        intendedPlaying = false; wasPlaying = false; resumeAfterInterruption = false
+        +        itemGeneration += 1
+        +        removePlayerObservers()
+        +        removeTrackObservers()
+        +        cancelPendingSeek(code: "SEEK_CANCELLED", message: "Audio service was reset")
+        +        player.pause()
+        +        NativeAudioSession.deactivate(self)
+        +
+        +        player = AVPlayer()
+        +        player.volume = volume
+        +        observePlayer()
+        +        errorMessage = ""
+        +        if !queueID.isEmpty {
+        +            do {
+        +                // Chỉ chuẩn bị lại bài; kích hoạt audio session khi người dùng bấm Phát.
+        +                try loadTrack(position: position, autoplay: false)
+        +                ended = reachedEnd; pausedAtTrackEnd = pausedForSleep
+        +            } catch {
+        +                retainedPosition = position
+        +                errorMessage = error.localizedDescription
+        +            }
+        +        }
+        +        publish()
+        +    }
+        +
+             private func observe(_ name: Notification.Name, handler: @escaping (Notification) -> Void) {
+                 observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main, using: handler))
+             }
+        @@ -159,9 +202,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+                 itemGeneration += 1
+                 let generation = itemGeneration
+                 cancelPendingSeek()
+        -        itemStatus?.invalidate()
+        -        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
+        -        endObserver = nil
+        +        removeTrackObservers()
+                 player.pause()
+                 ended = false; pausedAtTrackEnd = false; errorMessage = ""; intendedPlaying = autoplay
+                 let item = AVPlayerItem(url: url)
+        @@ -186,6 +227,12 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+                 beginSeek(position: position.isFinite ? max(0, position) : 0, call: call)
+             }
+         
+        +    private func removeTrackObservers() {
+        +        itemStatus?.invalidate(); itemStatus = nil
+        +        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
+        +        endObserver = nil
+        +    }
+        +
+             private func cancelPendingSeek(code: String = "SEEK_CANCELLED", message: String = "Seek was superseded") {
+                 seekGeneration += 1
+                 seekTimeout?.cancel(); seekTimeout = nil
+        @@ -245,7 +292,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+         
+             private func startPlayback() throws {
+                 if isRosaryPlayback && ended { throw failure("Rosary session has completed") }
+        -        guard !queueID.isEmpty, player.currentItem != nil else { throw failure("No active playlist") }
+        +        guard !queueID.isEmpty else { throw failure("No active playlist") }
+                 try NativeAudioSession.activate(self)
+                 resumeAfterInterruption = false
+                 if pausedAtTrackEnd {
+        @@ -253,10 +300,14 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+                     if repeatMode != 1 && index + 1 < tracks.count { index += 1 }
+                     else if repeatMode == 2 { index = 0 }
+                     try loadTrack(position: 0, autoplay: true)
+        +            return
+        +        }
+        +        if ended {
+        +            try loadTrack(position: 0, autoplay: true)
+        +            return
+                 }
+        -        if ended { try loadTrack(position: 0, autoplay: true) }
+        -        if player.currentItem?.status == .failed {
+        -            // Tạo lại item lỗi ở vị trí đã giữ; play không tải lại item đã thất bại.
+        +        if player.currentItem == nil || player.currentItem?.status == .failed || !errorMessage.isEmpty {
+        +            // Chuẩn bị lại bài tại vị trí đã lưu nếu lần phục hồi trước thất bại.
+                     try loadTrack(position: retainedPosition, autoplay: true)
+                     return
+                 }
+        @@ -327,9 +378,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+             private func stopAndClearWidget() {
+                 pausePlayback(); itemGeneration += 1
+                 cancelPendingSeek(); retainedPosition = 0
+        -        itemStatus?.invalidate(); itemStatus = nil
+        -        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
+        -        endObserver = nil
+        +        removeTrackObservers()
+                 player.replaceCurrentItem(with: nil)
+                 queueID = ""; album = [:]; tracks = []; index = 0; ended = false; pausedAtTrackEnd = false
+                 sleepRemaining = 0; sleepAtEnd = false
+        @@ -768,8 +817,8 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
+                 widgetReload?.cancel()
+                 seekTimeout?.cancel()
+                 pendingSeekCall?.reject("Audio bridge closed", "CLOSED")
+        -        if let token = timeObserver { player.removeTimeObserver(token) }
+        -        if let token = endObserver { NotificationCenter.default.removeObserver(token) }
+        +        removePlayerObservers()
+        +        removeTrackObservers()
+                 observers.forEach(NotificationCenter.default.removeObserver)
+                 commands.forEach { $0.0.removeTarget($0.1) }
+                 artworkTask?.cancel()
+        SWIFT_FIX
+        echo '12570b9d70aecd6d965cdb82fa6ac84ab1b169a176100f78c74221e5190e6f9b  ios/App/App/DharmaAudioPlugin.swift' | shasum -a 256 -c
+        cp "$source_file" "$RUNNER_TEMP/ios-audio-reset-fixed.swift"
+        cat > "$RUNNER_TEMP/ios-audio-reset-regression.swift" <<'SWIFT_QA'
+        // GitHub QA appends this fixture to DharmaAudioPlugin.swift for the Simulator build.
+        #if DEBUG && targetEnvironment(simulator)
+        extension DharmaAudioPlugin {
+            @MainActor
+            static func runAudioResetRegression() async {
+                let plugin = DharmaAudioPlugin()
+                plugin.configure()
+                var checks: [String] = []
+        
+                func call(_ name: String, _ args: [String: Any], _ run: (CAPPluginCall) -> Void) async throws -> [String: Any] {
+                    try await withCheckedThrowingContinuation { continuation in
+                        let request = CAPPluginCall(callbackId: UUID().uuidString, methodName: name, options: args,
+                            success: { result, _ in continuation.resume(returning: result?.data ?? [:]) },
+                            error: { error in continuation.resume(throwing: plugin.failure(error?.message ?? name)) })!
+                        run(request)
+                    }
+                }
+        
+                func require(_ condition: Bool, _ reason: String) throws {
+                    if !condition { throw plugin.failure(reason) }
+                }
+        
+                func wait(_ reason: String, _ completed: () -> Bool) async throws {
+                    let deadline = ProcessInfo.processInfo.systemUptime + 10
+                    while !completed() {
+                        try require(ProcessInfo.processInfo.systemUptime < deadline, reason)
+                        try await Task.sleep(nanoseconds: 100_000_000)
+                    }
+                }
+        
+                func reset() {
+                    NotificationCenter.default.post(name: AVAudioSession.mediaServicesWereResetNotification, object: AVAudioSession.sharedInstance())
+                }
+        
+                func interruption(_ type: AVAudioSession.InterruptionType) {
+                    NotificationCenter.default.post(name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance(), userInfo: [
+                        AVAudioSessionInterruptionTypeKey: type.rawValue,
+                        AVAudioSessionInterruptionOptionKey: AVAudioSession.InterruptionOptions.shouldResume.rawValue
+                    ])
+                }
+        
+                var result: [String: Any]
+                do {
+                    let tracks = (1...2).map { ["title": "QA audio \($0)", "url": "asset:///public/assets/audio/nhac-thien-0\($0).m4a"] }
+                    _ = try await call("setQueue", ["queueId": "qa-reset", "tracks": tracks, "index": 0, "position": 8.0], plugin.setQueue)
+                    _ = try await call("options", ["volume": 0.35, "speed": 1.25, "repeat": 2], plugin.options)
+                    _ = try await call("sleep", ["remainingMs": 60_000.0], plugin.sleep)
+                    _ = try await call("play", [:], plugin.play)
+                    try await wait("Initial playback did not advance") { plugin.player.timeControlStatus == .playing && plugin.playbackPosition() > 9 }
+                    let position = plugin.playbackPosition()
+                    let originalPlayer = plugin.player
+                    let originalItem = plugin.player.currentItem
+                    let remaining = plugin.sleepRemaining
+                    reset()
+                    try require(plugin.player !== originalPlayer, "Reset reused the old AVPlayer")
+                    try require(plugin.player.currentItem != nil && plugin.player.currentItem !== originalItem, "Reset reused the old track item")
+                    try await wait("Reset did not prepare a replacement item") { plugin.pendingSeekPosition == nil && plugin.player.currentItem?.status == .readyToPlay }
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                    let paused = try await call("getState", [:], plugin.getState)
+                    try require(paused["playing"] as? Bool == false && paused["playWhenReady"] as? Bool == false, "Reset started playback on its own")
+                    try require(paused["queueId"] as? String == "qa-reset" && paused["trackIndex"] as? Int == 0, "Reset changed the queue or track")
+                    try require(abs((paused["position"] as? Double ?? 0) - position) < 0.35, "Reset lost the saved position")
+                    try require(abs(plugin.player.volume - 0.35) < 0.001 && plugin.speed == 1.25 && plugin.repeatMode == 2, "Reset lost playback settings")
+                    try require(plugin.sleepRemaining > 0 && abs(plugin.sleepRemaining - remaining) < 1_000, "Reset lost the sleep timer")
+                    try require(paused["error"] as? String == "", "Successful recovery exposed a playback error")
+                    checks.append("new-player-paused-with-position-and-settings")
+        
+                    _ = try await call("play", [:], plugin.play)
+                    try await wait("Explicit Play did not resume from the saved position") { plugin.player.timeControlStatus == .playing && plugin.playbackPosition() > position + 0.5 }
+                    checks.append("explicit-play-resumes")
+        
+                    interruption(.began)
+                    let interruptedPosition = plugin.playbackPosition()
+                    reset()
+                    let secondPlayer = plugin.player
+                    reset()
+                    interruption(.ended)
+                    try require(plugin.player !== secondPlayer, "Repeated reset kept the previous player")
+                    try await wait("Repeated reset did not settle") { plugin.pendingSeekPosition == nil }
+                    try require(!plugin.intendedPlaying && plugin.player.timeControlStatus == .paused, "Old interruption or seek resumed after reset")
+                    try require(abs(plugin.playbackPosition() - interruptedPosition) < 0.35, "Repeated reset lost the position")
+                    checks.append("repeated-reset-and-stale-interruption")
+        
+                    _ = try await call("seek", [:]) { request in
+                        plugin.beginSeek(position: 15, call: CAPPluginCall(callbackId: UUID().uuidString, methodName: "seek", options: [:],
+                            success: { _, _ in request.reject("Old seek resolved after reset") },
+                            error: { error in
+                                guard error?.code == "SEEK_CANCELLED" else { request.reject("Old seek cancellation not reported"); return }
+                                request.resolve()
+                            })!)
+                        reset()
+                    }
+                    try await wait("Pending seek position was not restored") { plugin.pendingSeekPosition == nil && abs(plugin.playbackPosition() - 15) < 0.35 }
+                    try require(!plugin.intendedPlaying && plugin.player.timeControlStatus == .paused, "Cancelled seek started playback")
+                    checks.append("in-flight-seek-cancelled-and-recovered")
+        
+                    _ = try await call("stop", [:], plugin.stop)
+                    reset()
+                    let idle = try await call("getState", [:], plugin.getState)
+                    try require(idle["queueId"] as? String == "" && idle["error"] as? String == "" && plugin.player.currentItem == nil,
+                                "Idle reset resurrected a queue or surfaced an error")
+                    checks.append("idle-reset-stays-idle")
+                    result = ["passed": true, "checks": checks]
+                } catch {
+                    result = ["passed": false, "checks": checks, "error": error.localizedDescription]
+                }
+                do {
+                    let folder = try FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                    let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+                    try data.write(to: folder.appendingPathComponent("ios-audio-reset-qa.json"), options: .atomic)
+                } catch {
+                    NSLog("Could not save audio reset QA result: %@", error.localizedDescription)
+                }
+            }
+        }
+        #endif
+        SWIFT_QA
+        printf '\n' >> "$source_file"
+        cat "$RUNNER_TEMP/ios-audio-reset-regression.swift" >> "$source_file"
+        python3 - <<'PY'
+        from pathlib import Path
+        bridge = Path('ios/App/App/TuTapBridgeViewController.swift')
+        source = bridge.read_text()
+        anchor = '        installQAEventsIfRequested()'
+        assert source.count(anchor) == 1
+        hook = '''
+        #if targetEnvironment(simulator)
+                if ProcessInfo.processInfo.arguments.contains("-tutam-qa-audio-reset") {
+                    Task { @MainActor in await DharmaAudioPlugin.runAudioResetRegression() }
+                }
+        #endif
+        '''
+        bridge.write_text(source.replace(anchor, anchor + hook))
+        PY
+        cat > "$RUNNER_TEMP/run-audio-reset-regression.sh" <<'SH'
+        set -euo pipefail
+        phase="$1"
+        sim="$TUTAM_QA_SIMULATOR"
+        app="build/ios-simulator/Build/Products/Debug-iphonesimulator/App.app"
+        xcrun simctl install "$sim" "$app"
+        container="$(xcrun simctl get_app_container "$sim" vn.quangtu.tutam data)"
+        report="$container/Library/Caches/ios-audio-reset-qa.json"
+        rm -f "$report"
+        xcrun simctl launch --terminate-running-process "$sim" vn.quangtu.tutam -tutam-qa-audio-reset 1
+        for i in $(seq 1 100); do
+          if [ -s "$report" ]; then break; fi
+          sleep 1
+        done
+        test -s "$report"
+        cp "$report" "build/release-evidence/audio-reset-$phase.json"
+        cat "$report"
+        xcrun simctl terminate "$sim" vn.quangtu.tutam
+        python3 - "$phase" "$report" <<'PY'
+        import json, sys
+        result = json.load(open(sys.argv[2]))
+        if sys.argv[1] == 'fixed':
+            assert result['passed'] is True, result
+            assert len(result['checks']) == 5, result
+        else:
+            assert result['passed'] is False and result.get('error') == 'Reset reused the old AVPlayer', result
+        PY
+        SH
     - name: Build iOS app, native plugins and UI tests once for the selected simulator
       run: |
         set -euo pipefail
@@ -138,7 +481,7 @@ jobs:
           -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
           -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
           -derivedDataPath build/ios-simulator \
-          -only-testing:AppUITests/NativeExtendedGuestTests \
+          -only-testing:AppUITests \
           CODE_SIGNING_ALLOWED=NO build-for-testing
     - name: Verify packaged Google privacy manifests
       run: |
@@ -153,7 +496,10 @@ jobs:
         find "$app" -name PrivacyInfo.xcprivacy -print | sed "s|$app/||" > build/release-evidence/privacy-manifests.txt
         grep -q 'GoogleSignIn (7.1.0)' ios/App/Podfile.lock
         cp ios/App/Podfile.lock build/release-evidence/Podfile.lock
-    - name: Run native scripture copying and synchronized reference
+    - name: Verify audio reset and explicit replay with the fix
+      run: |
+        bash "$RUNNER_TEMP/run-audio-reset-regression.sh" fixed
+    - name: Run native audio and scripture regressions
       timeout-minutes: 35
       run: |
         set -euo pipefail
@@ -164,6 +510,9 @@ jobs:
           -derivedDataPath build/ios-simulator \
           -resultBundlePath build/release-evidence/NativeGuestSmoke.xcresult \
           -only-testing:AppUITests/NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost \
+          -only-testing:AppUITests/NativeExtendedGuestTests/testMeditationPauseResumeSurvivesNativeBackgrounding \
+          -only-testing:AppUITests/NativeSimulatorSnapshotTests/testRosaryManualAndAutomaticAudioProgress \
+          -only-testing:AppUITests/NativeGuestSmokeTests/testRosaryBackPreservesCountInPortraitAndLandscape \
           -parallel-testing-enabled NO \
           -test-timeouts-enabled YES \
           -default-test-execution-time-allowance 600 \
@@ -179,11 +528,25 @@ jobs:
         python3 - <<'PY'
         import json
         data=json.load(open('build/release-evidence/native-ui-summary.json'))
-        assert data['passedTests'] == 1, 'The scripture copying case must finish and pass'
+        assert data['passedTests'] == 4, 'All four native UI regressions must finish and pass'
         assert data['failedTests'] == 0, 'Native UI test failures'
         assert data['skippedTests'] == 0, 'Native UI tests must not be skipped'
         print('Verified native UI test execution:',data['passedTests'],'passed, 0 failed, 0 skipped')
         PY
+    - name: Confirm the same test catches the old player on the baseline
+      run: |
+        set -euo pipefail
+        source_file='ios/App/App/DharmaAudioPlugin.swift'
+        git show "HEAD:$source_file" > "$source_file"
+        echo '33840656975fbfc72092f1e7d0bda8c18b7b0e6fa3c9f31e9a21f30d53c64462  ios/App/App/DharmaAudioPlugin.swift' | shasum -a 256 -c
+        printf '\n' >> "$source_file"
+        cat "$RUNNER_TEMP/ios-audio-reset-regression.swift" >> "$source_file"
+        xcodebuild -quiet \
+          -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+          -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+          -derivedDataPath build/ios-simulator \
+          CODE_SIGNING_ALLOWED=NO build
+        bash "$RUNNER_TEMP/run-audio-reset-regression.sh" baseline
     - name: Shut down the CI simulator before restoring network resolution
       if: always()
       run: |
@@ -209,6 +572,7 @@ jobs:
         path: |-
           build/release-evidence/native-ui-summary.json
           build/release-evidence/native-ui-test.log
+          build/release-evidence/audio-reset-*.json
           build/release-evidence/NativeGuestSmoke.xcresult
         if-no-files-found: warn
         retention-days: 3
