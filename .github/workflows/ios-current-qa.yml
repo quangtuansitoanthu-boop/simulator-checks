@@ -458,7 +458,7 @@ jobs:
                     let originalPlayer = plugin.player
                     let originalItem = plugin.player.currentItem
                     let remaining = plugin.sleepRemaining
-                    let duration = plugin.trackDuration()
+                    let duration = plugin.seconds(plugin.player.currentItem?.duration ?? .zero)
                     reset()
                     try require(plugin.player !== originalPlayer, "Reset reused the old AVPlayer")
                     try await Task.sleep(nanoseconds: 500_000_000)
