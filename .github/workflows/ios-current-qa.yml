@@ -92,7 +92,8 @@ jobs:
         with open(os.environ['GITHUB_ENV'],'a') as output:
             output.write('TUTAM_QA_HOSTS_ISOLATED=1\n')
         PY
-    - name: Select and boot an available iPhone simulator
+    - name: Select and boot an available iPhone Simulator on iOS 18.5
+      timeout-minutes: 8
       run: |
         set -euo pipefail
         test "$TUTAM_QA_HOSTS_ISOLATED" = 1
@@ -104,13 +105,13 @@ jobs:
             if '.iOS-' not in runtime:
                 continue
             version=runtime.rsplit('.iOS-',1)[1].split('-')
-            if int(version[0]) < 17:
+            if version[:2] != ['18', '5']:
                 continue
             for device in devices:
                 if device.get('isAvailable') and device['name'].startswith('iPhone'):
                     print(device['udid'])
                     raise SystemExit(0)
-        raise SystemExit('No available iPhone simulator with iOS 17 or newer')
+        raise SystemExit('No available iPhone simulator with iOS 18.5')
         PY
         )
         echo "TUTAM_QA_SIMULATOR=$simulator_id" >> "$GITHUB_ENV"
