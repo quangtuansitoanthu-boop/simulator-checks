@@ -416,9 +416,13 @@ jobs:
         
                 func call(_ name: String, _ args: [String: Any], _ run: (CAPPluginCall) -> Void) async throws -> [String: Any] {
                     try await withCheckedThrowingContinuation { continuation in
-                        let request = CAPPluginCall(callbackId: UUID().uuidString, methodName: name, options: args,
+                        let options = JSTypes.coerceDictionaryToJSObject(args as [AnyHashable: Any]) ?? [:]
+                        let request = CAPPluginCall(callbackId: UUID().uuidString, methodName: name, options: options,
                             success: { result, _ in continuation.resume(returning: result?.data ?? [:]) },
-                            error: { error in continuation.resume(throwing: plugin.failure(error?.message ?? name)) })!
+                            error: { error in
+                                let details = [name, error?.code, error?.message, error?.error?.localizedDescription].compactMap { $0 }
+                                continuation.resume(throwing: plugin.failure(details.joined(separator: ": ")))
+                            })!
                         run(request)
                     }
                 }
@@ -576,6 +580,7 @@ jobs:
         PY
         SH
     - name: Build iOS app, native plugins and UI tests once for the selected simulator
+      id: simulator_build
       run: |
         set -euo pipefail
         test "$TUTAM_QA_HOSTS_ISOLATED" = 1
@@ -602,6 +607,7 @@ jobs:
       run: |
         bash "$RUNNER_TEMP/run-audio-reset-regression.sh" fixed
     - name: Run native audio and scripture regressions
+      if: ${{ !cancelled() && steps.simulator_build.outcome == 'success' }}
       timeout-minutes: 35
       run: |
         set -euo pipefail
@@ -636,6 +642,7 @@ jobs:
         print('Verified native UI test execution:',data['passedTests'],'passed, 0 failed, 0 skipped')
         PY
     - name: Confirm the same test catches the old player on the baseline
+      if: ${{ !cancelled() && steps.simulator_build.outcome == 'success' }}
       run: |
         set -euo pipefail
         source_file='ios/App/App/DharmaAudioPlugin.swift'
