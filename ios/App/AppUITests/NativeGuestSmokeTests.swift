@@ -1408,7 +1408,7 @@ final class NativeSimulatorSnapshotTests: NativeGuestUITestCase {
     func testVegetarianMenuTabsAndRecipeRemainReachable() {
         let app = launchGuest()
         navigate("Tu tập", app: app)
-        let title = "Ăn Chay Thanh Tịnh"
+        let title = "Lịch ăn chay đủ dinh dưỡng"
         let label = NSPredicate(format: "label BEGINSWITH[c] %@", title)
         let card = app.links.matching(label).firstMatch
         revealContentControl(card, app: app)

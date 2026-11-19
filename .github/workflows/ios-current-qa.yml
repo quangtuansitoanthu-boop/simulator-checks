@@ -1,4 +1,4 @@
-name: Current Tu tap iPhone Dharma and Widget shortcuts
+name: Current Tu tap iPhone vegetarian menu
 'on':
   push:
     branches:
@@ -126,7 +126,7 @@ jobs:
           -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
           -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
           -derivedDataPath build/ios-simulator \
-          -only-testing:AppUITests/NativeGuestSmokeTests \
+          -only-testing:AppUITests/NativeSimulatorSnapshotTests \
           CODE_SIGNING_ALLOWED=NO build-for-testing
     - name: Verify packaged Google privacy manifests
       run: |
@@ -141,7 +141,7 @@ jobs:
         find "$app" -name PrivacyInfo.xcprivacy -print | sed "s|$app/||" > build/release-evidence/privacy-manifests.txt
         grep -q 'GoogleSignIn (7.1.0)' ios/App/Podfile.lock
         cp ios/App/Podfile.lock build/release-evidence/Podfile.lock
-    - name: Run Phap thoai and Widget SpringBoard actions
+    - name: Run vegetarian menu tabs and recipe
       timeout-minutes: 35
       run: |
         set -euo pipefail
@@ -151,8 +151,7 @@ jobs:
           -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
           -derivedDataPath build/ios-simulator \
           -resultBundlePath build/release-evidence/NativeGuestSmoke.xcresult \
-          -only-testing:AppUITests/NativeGuestSmokeTests/testHomeQuickActionDharmaTalks \
-          -only-testing:AppUITests/NativeGuestSmokeTests/testHomeQuickActionWidgetsGuide \
+          -only-testing:AppUITests/NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable \
           -parallel-testing-enabled NO \
           -test-timeouts-enabled YES \
           -default-test-execution-time-allowance 600 \
@@ -168,7 +167,7 @@ jobs:
         python3 - <<'PY'
         import json
         data=json.load(open('build/release-evidence/native-ui-summary.json'))
-        assert data['passedTests'] == 2, 'Both remaining shortcuts must finish and pass'
+        assert data['passedTests'] == 1, 'The vegetarian menu case must finish and pass'
         assert data['failedTests'] == 0, 'Native UI test failures'
         assert data['skippedTests'] == 0, 'Native UI tests must not be skipped'
         print('Verified native UI test execution:',data['passedTests'],'passed, 0 failed, 0 skipped')
