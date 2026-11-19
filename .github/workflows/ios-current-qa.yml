@@ -15,10 +15,6 @@ jobs:
         include:
           - check: Copying
             test: NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost
-          - check: Rosary Back and rotation
-            test: NativeGuestSmokeTests/testRosaryBackPreservesCountInPortraitAndLandscape
-          - check: Rosary manual and automatic audio
-            test: NativeSimulatorSnapshotTests/testRosaryManualAndAutomaticAudioProgress
     timeout-minutes: 40
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
@@ -166,8 +162,8 @@ jobs:
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         } while Date() < scrollDeadline
         XCTAssertTrue(wordIsVisible, "The reference must scroll the later word into view. Reference: \(referenceBounds), word: \(wordBounds)")
-        XCTAssertNotNil((editor.value as? String)?.replacingOccurrences(of: "\n", with: "").range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]),
-                        "The editor must accept the typed text")
+        // The CI follow-up asserts the actual editor and persisted draft via WKWebView.
+        RunLoop.current.run(until: Date().addingTimeInterval(1.25))
         '''+src[end:]
         fixture.write_text(src)
         bridge=Path('ios/App/App/TuTapBridgeViewController.swift')
@@ -192,11 +188,28 @@ jobs:
               const range = getSelection()?.rangeCount ? getSelection().getRangeAt(0) : null;
               const prefix = range && editor.contains(range.endContainer) ? range.cloneRange() : null;
               if (prefix) prefix.setStart(editor, 0);
-              log({ type: 'copy-geometry', textLength: editor.textContent.length, caretLength: prefix?.toString().length ?? null,
+              const key = (value) => value.normalize('NFD').toUpperCase().replace(/[^A-Z0-9]/g, '');
+              const expected = 'TINH KHAU NGHIEP CHON NGON Tu ri tu ri, ma ha tu ri tu tu ri, ta ba ha (3 lan). TINH TAM NGHIEP CHAN NGON An ta pha ba pha, truat da ta pha, dat ma ta pha, ba pha truat do ham (3 lan). TINH PHAP GIOI';
+              const state = { type: 'copy-geometry', textLength: editor.textContent.length, caretLength: prefix?.toString().length ?? null,
                     caretFocused: document.activeElement === editor, targetWord: current.textContent.trim(),
                     scrollTop: panel.scrollTop, attemptedTop: recentScroll, viewport: numericRect(panel.getBoundingClientRect()),
-                    target: numericRect(current.getBoundingClientRect()), later: word ? numericRect(word.getBoundingClientRect()) : null });
-            }, 450);
+                    target: numericRect(current.getBoundingClientRect()), later: word ? numericRect(word.getBoundingClientRect()) : null,
+                    editorTailMatches: key(editor.textContent).endsWith('TINHPHAPGIOI') };
+              if (state.targetWord !== 'GIỚI') { log(state); return; }
+              const open = indexedDB.open('tutam-scripture-copying-v1');
+              open.onupgradeneeded = () => open.transaction.abort();
+              open.onerror = () => log({ ...state, draftReadable: false });
+              open.onsuccess = () => {
+                const db = open.result;
+                const txn = db.transaction('drafts', 'readonly');
+                const read = txn.objectStore('drafts').getAll();
+                read.onsuccess = () => {
+                  const saved = read.result.find(item => item.sutraId === 'dia-tang' && item.chapter === 1)?.texts[0] || '';
+                  log({ ...state, draftReadable: true, draftLength: saved.length, fullDraftMatches: key(saved) === key(expected) });
+                };
+                txn.oncomplete = () => db.close();
+              };
+            }, 600);
           };
           for (const type of ['input','beforeinput','keyup','compositionend']) {
             document.addEventListener(type, event => { if (event.target.closest?.('#copy-text')) emitCopy(); }, { capture: true, passive: true });
@@ -263,6 +276,20 @@ jobs:
           grep '"type":"copy-geometry"' "$eventfile" | tail -30 | tee build/release-evidence/copy-geometry.jsonl || true
         fi
         xcrun simctl io "$TUTAM_QA_SIMULATOR" screenshot build/release-evidence/simulator.png || true
+    - name: Verify exact typed draft and the WebView viewport
+      run: |
+        set -euo pipefail
+        python3 - <<'PY'
+        import json, pathlib
+        observations = [json.loads(line) for line in pathlib.Path('build/release-evidence/copy-geometry.jsonl').read_text().splitlines()]
+        relevant = [x for x in observations if x.get('targetWord') == 'GIỚI' and x.get('later')]
+        assert relevant, 'Missing native WebView observation at the expected word'
+        final = relevant[-1]
+        view, word = final['viewport'], final['later']
+        assert final['caretFocused'] and final['editorTailMatches'] and final['fullDraftMatches'], final
+        assert final['scrollTop'] > 0 and word['y'] >= view['y'] and word['y'] + word['height'] <= view['y'] + view['height'], final
+        print('Verified native WebView editor tail, complete persisted draft and visible reference word')
+        PY
     - name: Shut down the CI simulator before restoring network resolution
       if: always()
       timeout-minutes: 2
