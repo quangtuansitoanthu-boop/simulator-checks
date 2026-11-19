@@ -123,6 +123,7 @@ jobs:
       run: |
         python3 - <<'PY'
         from pathlib import Path
+        from textwrap import indent
         fixture=Path('ios/App/AppUITests/NativeGuestSmokeTests.swift')
         src=fixture.read_text()
         start=src.index('        // Lấy snapshot AX trước')
@@ -164,7 +165,7 @@ jobs:
             document.addEventListener(type, event => { if (event.target.closest?.('#copy-text')) emitCopy(); }, { capture: true, passive: true });
           }
         """
-        bridge.write_text(src.replace(anchor, diagnostic + anchor))
+        bridge.write_text(src.replace(anchor, indent(diagnostic, "        ") + anchor))
         PY
     - name: Apply verified iOS audio fix
       run: |
