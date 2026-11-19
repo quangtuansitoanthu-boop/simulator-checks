@@ -7,14 +7,27 @@ permissions:
   contents: read
 jobs:
   simulator:
+    name: ${{ matrix.check }} on iOS 18.5
     runs-on: macos-15
-    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - check: Copying
+            test: NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost
+          - check: Rosary Back and rotation
+            test: NativeGuestSmokeTests/testRosaryBackPreservesCountInPortraitAndLandscape
+          - check: Rosary manual and automatic audio
+            test: NativeSimulatorSnapshotTests/testRosaryManualAndAutomaticAudioProgress
+    timeout-minutes: 40
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
     - uses: actions/checkout@v6
       with:
         persist-credentials: false
+        repository: quangtuansitoanthu-boop/r-8f31b6c2
+        ref: 5ce555524363ce13a730ca6a9ef78fff897c1b3f
     - uses: actions/setup-node@v6
       with:
         node-version: 24
@@ -25,24 +38,31 @@ jobs:
         pod --version
     - name: Install locked dependencies
       run: npm ci
-    - name: Verify and sync the latest iOS asset bundle
-      run: |-
+    - name: Build and verify the exact release candidate bundle
+      env:
+        TUTAM_BUNDLE_SYNCED: '1'
+      run: |
         set -euo pipefail
-        echo 'cccb225cb387d8ffac89e62a3893bb0ddd2fa8d556d6d8520d9fdd9301565405  ios/App/App/public/mobile-assets-manifest.json' | shasum -a 256 -c
-        grep -Fq '1gh4bo0' ios/App/App/public/index.html
-        mkdir -p build
-        cp -R ios/App/App/public/. build/
-        VITE_GOOGLE_IOS_CLIENT_ID="$(python3 - <<'PY'
+        test "$(git rev-parse HEAD)" = "5ce555524363ce13a730ca6a9ef78fff897c1b3f"
+        export VITE_GOOGLE_IOS_CLIENT_ID="$(python3 - <<'PY'
         import plistlib
         with open('ios/App/App/Info.plist', 'rb') as info:
             plist = plistlib.load(info)
-        scheme = next(value for row in plist['CFBundleURLTypes'] if row.get('CFBundleURLName') == 'GoogleSignIn' for value in row['CFBundleURLSchemes'])
-        prefix = 'com.googleusercontent.apps.'
-        assert scheme.startswith(prefix)
-        print(scheme.removeprefix(prefix) + '.apps.googleusercontent.com')
+        google = next(value for row in plist['CFBundleURLTypes'] if row.get('CFBundleURLName') == 'GoogleSignIn' for value in row['CFBundleURLSchemes'])
+        assert google.startswith('com.googleusercontent.apps.')
+        print(google.removeprefix('com.googleusercontent.apps.') + '.apps.googleusercontent.com')
         PY
-        )" npx cap sync ios
-        echo 'cccb225cb387d8ffac89e62a3893bb0ddd2fa8d556d6d8520d9fdd9301565405  ios/App/App/public/mobile-assets-manifest.json' | shasum -a 256 -c
+        )"
+        npm run build:mobile -- --platform ios
+        echo 'f50dae2dfbe24ba8bad4185ac95c3649c7319437b468ddeeb30d162cb4dde255  ios/App/App/public/covers/niem-phat-thap-yeu-phap-thoai.webp' | shasum -a 256 -c
+        node --input-type=module - <<'JS'
+        import fs from 'node:fs';
+        import assert from 'node:assert/strict';
+        const rows = JSON.parse(fs.readFileSync('ios/App/App/public/offline-data/talks.json'));
+        const album = rows.find(row => row.id === 'pt_1781800562343');
+        assert.equal(album.anh_dai_dien, 'covers/niem-phat-thap-yeu-phap-thoai.webp#pos=53%25%2014%25');
+        assert.equal(album.tracks.length, 23);
+        JS
     - name: Isolate production hosts before native simulator UI tests
       run: |
         set -euo pipefail
@@ -52,7 +72,7 @@ jobs:
         proxy=subprocess.check_output(['scutil','--proxy'],text=True)
         assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy), 'Proxy-enabled runner cannot prove production host isolation'
         assert not any(value for key,value in os.environ.items() if key.lower() in ('http_proxy','https_proxy','all_proxy')), 'Proxy environment must be disabled for native UI isolation'
-        hosts=set(json.loads(pathlib.Path('qa-production-hosts.json').read_text()))
+        hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
         assert {'quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}.issubset(hosts), 'Expected native origins and legacy alias are missing'
         assert all(re.fullmatch(r'[a-z0-9.-]+',host) for host in hosts)
         backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'tutam-native-qa-hosts.backup'
@@ -129,9 +149,26 @@ jobs:
         start=src.index('        // Lấy snapshot AX trước')
         end=src.index('\n    }', start)
         src=src[:start] + '        print("QA evidence checkpoint: \\(name)")' + src[end:]
-        needle='        XCTAssertNotNil((editor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]),'
-        assert src.count(needle) == 1
-        src=src.replace(needle, needle.replace('?.range', '?.replacingOccurrences(of: "\\n", with: "").range'))
+        start=src.index('        waitUntil("The editor must accept the text and the reference must scroll')
+        end=src.index('        XCTAssertTrue(app.keyboards.firstMatch.exists)',start)
+        src=src[:start]+r'''        let scrollDeadline = Date().addingTimeInterval(25)
+        var referenceBounds = CGRect.zero
+        var wordBounds = CGRect.zero
+        var wordIsVisible = false
+        repeat {
+            if reference.exists && laterWord.exists {
+                referenceBounds = reference.frame
+                wordBounds = laterWord.frame
+                wordIsVisible = !wordBounds.isEmpty && referenceBounds.intersects(wordBounds) &&
+                    wordBounds.minY >= referenceBounds.minY - 1 && wordBounds.maxY <= referenceBounds.maxY + 1
+            }
+            if wordIsVisible { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < scrollDeadline
+        XCTAssertTrue(wordIsVisible, "The reference must scroll the later word into view. Reference: \(referenceBounds), word: \(wordBounds)")
+        XCTAssertNotNil((editor.value as? String)?.replacingOccurrences(of: "\n", with: "").range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]),
+                        "The editor must accept the typed text")
+        '''+src[end:]
         fixture.write_text(src)
         bridge=Path('ios/App/App/TuTapBridgeViewController.swift')
         src=bridge.read_text()
@@ -167,279 +204,6 @@ jobs:
         """
         bridge.write_text(src.replace(anchor, indent(diagnostic, "        ") + anchor))
         PY
-    - name: Apply verified iOS audio fix
-      run: |
-        set -euo pipefail
-        source_file='ios/App/App/DharmaAudioPlugin.swift'
-        echo '33840656975fbfc72092f1e7d0bda8c18b7b0e6fa3c9f31e9a21f30d53c64462  ios/App/App/DharmaAudioPlugin.swift' | shasum -a 256 -c
-        git apply - <<'SWIFT_FIX'
-        diff --git a/ios/App/App/DharmaAudioPlugin.swift b/ios/App/App/DharmaAudioPlugin.swift
-        index 471a836..7c6d260 100644
-        --- a/ios/App/App/DharmaAudioPlugin.swift
-        +++ b/ios/App/App/DharmaAudioPlugin.swift
-        @@ -15,7 +15,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                 "cacheStatus", "cacheChunk", "backgroundStatus", "openBackgroundSettings", "selectPrincipal"
-             ].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
-         
-        -    private let player = AVPlayer()
-        +    private var player = AVPlayer()
-             private var tracks: [JSObject] = []
-             private var album: JSObject = [:]
-             private var queueID = ""
-        @@ -37,6 +37,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-             private var pendingSeekCall: CAPPluginCall?
-             private var seekTimeout: DispatchWorkItem?
-             private var retainedPosition: Double = 0
-        +    private var resetTrackDuration: Double?
-             private var itemStatus: NSKeyValueObservation?
-             private var timeStatus: NSKeyValueObservation?
-             private var endObserver: NSObjectProtocol?
-        @@ -61,14 +62,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-             private func configure() {
-                 guard !configured else { return }
-                 configured = true
-        -        player.actionAtItemEnd = .pause
-        -        timeStatus = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
-        -            DispatchQueue.main.async { self?.publish() }
-        -        }
-        -        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { [weak self] _ in
-        -            guard let self = self, !self.queueID.isEmpty else { return }
-        -            self.publish()
-        -        }
-        +        observePlayer()
-                 observe(NativeAudioSession.willStart) { [weak self] note in
-                     guard let self = self, note.object as AnyObject? !== self else { return }
-                     self.pausePlayback()
-        @@ -79,14 +73,55 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                        reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue { self?.pausePlayback() }
-                 }
-                 observe(AVAudioSession.mediaServicesWereResetNotification) { [weak self] _ in
-        -            // Không tự phát lại sau khi audio service của hệ điều hành bị reset.
-        -            self?.pausePlayback()
-        -            self?.errorMessage = "Audio service was reset. Please play the track again."
-        -            self?.publish()
-        +            self?.recoverAfterMediaServicesReset()
-                 }
-                 configureCommands()
-             }
-         
-        +    private func observePlayer() {
-        +        let observedPlayer = player
-        +        observedPlayer.actionAtItemEnd = .pause
-        +        timeStatus = observedPlayer.observe(\.timeControlStatus, options: [.new]) { [weak self] observed, _ in
-        +            DispatchQueue.main.async { [weak observed] in
-        +                guard let self = self, self.player === observed else { return }
-        +                self.publish()
-        +            }
-        +        }
-        +        timeObserver = observedPlayer.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) { [weak self, weak observedPlayer] _ in
-        +            guard let self = self, self.player === observedPlayer, !self.queueID.isEmpty else { return }
-        +            self.publish()
-        +        }
-        +    }
-        +
-        +    private func removePlayerObservers() {
-        +        timeStatus?.invalidate(); timeStatus = nil
-        +        if let token = timeObserver { player.removeTimeObserver(token) }
-        +        timeObserver = nil
-        +    }
-        +
-        +    private func recoverAfterMediaServicesReset() {
-        +        // Player cũ có thể mất thời gian hiện tại ngay khi dịch vụ dừng.
-        +        let position = pendingSeekPosition ?? retainedPosition
-        +        let volume = player.volume
-        +        resetTrackDuration = queueID.isEmpty ? nil : trackDuration()
-        +        tickSleep()
-        +        intendedPlaying = false; wasPlaying = false; resumeAfterInterruption = false
-        +        itemGeneration += 1
-        +        removePlayerObservers()
-        +        removeTrackObservers()
-        +        cancelPendingSeek(code: "AUDIO_SERVICES_RESET", message: "Audio service was reset")
-        +        player.pause()
-        +        NativeAudioSession.deactivate(self)
-        +
-        +        player = AVPlayer()
-        +        player.volume = volume
-        +        observePlayer()
-        +        retainedPosition = position
-        +        errorMessage = ""
-        +        // Chờ thao tác Phát/tua để tạo item mới và tránh tải lại bài lúc reset.
-        +        publish()
-        +    }
-        +
-             private func observe(_ name: Notification.Name, handler: @escaping (Notification) -> Void) {
-                 observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main, using: handler))
-             }
-        @@ -159,9 +194,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                 itemGeneration += 1
-                 let generation = itemGeneration
-                 cancelPendingSeek()
-        -        itemStatus?.invalidate()
-        -        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
-        -        endObserver = nil
-        +        removeTrackObservers()
-                 player.pause()
-                 ended = false; pausedAtTrackEnd = false; errorMessage = ""; intendedPlaying = autoplay
-                 let item = AVPlayerItem(url: url)
-        @@ -182,10 +215,17 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                     self.trackFinished()
-                 }
-                 player.replaceCurrentItem(with: item)
-        +        resetTrackDuration = nil
-                 lastTick = ProcessInfo.processInfo.systemUptime; wasPlaying = false
-                 beginSeek(position: position.isFinite ? max(0, position) : 0, call: call)
-             }
-         
-        +    private func removeTrackObservers() {
-        +        itemStatus?.invalidate(); itemStatus = nil
-        +        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
-        +        endObserver = nil
-        +    }
-        +
-             private func cancelPendingSeek(code: String = "SEEK_CANCELLED", message: String = "Seek was superseded") {
-                 seekGeneration += 1
-                 seekTimeout?.cancel(); seekTimeout = nil
-        @@ -243,9 +283,18 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                 }
-             }
-         
-        +    private func seekTrack(position: Double, call: CAPPluginCall? = nil) throws {
-        +        if resetTrackDuration != nil {
-        +            try loadTrack(position: position, autoplay: false, call: call)
-        +        } else {
-        +            ended = false; pausedAtTrackEnd = false
-        +            beginSeek(position: position, call: call)
-        +        }
-        +    }
-        +
-             private func startPlayback() throws {
-                 if isRosaryPlayback && ended { throw failure("Rosary session has completed") }
-        -        guard !queueID.isEmpty, player.currentItem != nil else { throw failure("No active playlist") }
-        +        guard !queueID.isEmpty else { throw failure("No active playlist") }
-                 try NativeAudioSession.activate(self)
-                 resumeAfterInterruption = false
-                 if pausedAtTrackEnd {
-        @@ -253,10 +302,14 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                     if repeatMode != 1 && index + 1 < tracks.count { index += 1 }
-                     else if repeatMode == 2 { index = 0 }
-                     try loadTrack(position: 0, autoplay: true)
-        +            return
-        +        }
-        +        if ended {
-        +            try loadTrack(position: 0, autoplay: true)
-        +            return
-                 }
-        -        if ended { try loadTrack(position: 0, autoplay: true) }
-        -        if player.currentItem?.status == .failed {
-        -            // Tạo lại item lỗi ở vị trí đã giữ; play không tải lại item đã thất bại.
-        +        if player.currentItem == nil || player.currentItem?.status == .failed || !errorMessage.isEmpty {
-        +            // Chuẩn bị lại bài tại vị trí đã lưu nếu lần phục hồi trước thất bại.
-                     try loadTrack(position: retainedPosition, autoplay: true)
-                     return
-                 }
-        @@ -297,14 +350,15 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                 wasPlaying = player.timeControlStatus == .playing
-             }
-             private func seconds(_ time: CMTime) -> Double { let value = time.seconds; return value.isFinite ? max(0, value) : 0 }
-        +    private func trackDuration() -> Double { resetTrackDuration ?? seconds(player.currentItem?.duration ?? .zero) }
-             private func playbackPosition() -> Double {
-                 if let position = pendingSeekPosition { return position }
-        -        if errorMessage.isEmpty { retainedPosition = seconds(player.currentTime()) }
-        +        if resetTrackDuration == nil && errorMessage.isEmpty { retainedPosition = seconds(player.currentTime()) }
-                 return retainedPosition
-             }
-             private func state(includeAlbum: Bool = false) -> JSObject {
-                 var value: JSObject = ["queueId": queueID, "trackIndex": index, "position": playbackPosition(), "observedAtMs": Date().timeIntervalSince1970 * 1000,
-        -            "duration": seconds(player.currentItem?.duration ?? .zero), "playing": player.timeControlStatus == .playing,
-        +            "duration": trackDuration(), "playing": player.timeControlStatus == .playing,
-                     "playWhenReady": intendedPlaying, "buffering": pendingSeekPosition != nil || player.timeControlStatus == .waitingToPlayAtSpecifiedRate,
-                     "ended": ended, "speed": Double(speed), "volume": Double(player.volume), "repeat": repeatMode,
-                     "error": errorMessage, "sleepRemainingMs": sleepRemaining, "sleepAtEnd": sleepAtEnd]
-        @@ -326,10 +380,8 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-         
-             private func stopAndClearWidget() {
-                 pausePlayback(); itemGeneration += 1
-        -        cancelPendingSeek(); retainedPosition = 0
-        -        itemStatus?.invalidate(); itemStatus = nil
-        -        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
-        -        endObserver = nil
-        +        cancelPendingSeek(); retainedPosition = 0; resetTrackDuration = nil
-        +        removeTrackObservers()
-                 player.replaceCurrentItem(with: nil)
-                 queueID = ""; album = [:]; tracks = []; index = 0; ended = false; pausedAtTrackEnd = false
-                 sleepRemaining = 0; sleepAtEnd = false
-        @@ -367,10 +419,9 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                     guard let self = self else { call.reject("Audio bridge closed", "CLOSED"); return }
-                     guard !self.isRosaryPlayback else { call.reject("Rosary seeking is unavailable", "ROSARY_SEEK_DISABLED"); return }
-                     let position = call.getDouble("position") ?? 0
-        -            guard position.isFinite, self.player.currentItem != nil else { call.reject("Invalid seek position", "INVALID_SEEK"); return }
-        -            self.ended = false; self.pausedAtTrackEnd = false
-        -            self.errorMessage = ""
-        -            self.beginSeek(position: max(0, position), call: call)
-        +            guard position.isFinite, self.player.currentItem != nil || self.resetTrackDuration != nil else { call.reject("Invalid seek position", "INVALID_SEEK"); return }
-        +            do { try self.seekTrack(position: max(0, position), call: call) }
-        +            catch { call.reject("Cannot prepare audio for seeking", "PLAYBACK_FAILED", error) }
-                 }
-             }
-             @objc public func options(_ call: CAPPluginCall) {
-        @@ -491,17 +542,22 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                 command(center.skipBackwardCommand) { [weak self] in self?.skip(-10) }
-                 let token = center.changePlaybackPositionCommand.addTarget { [weak self] event in
-                     guard let self = self, let seek = event as? MPChangePlaybackPositionCommandEvent, !self.queueID.isEmpty, !self.isRosaryPlayback else { return .noSuchContent }
-        -            DispatchQueue.main.async { self.beginSeek(position: max(0, seek.positionTime)); self.ended = false; self.pausedAtTrackEnd = false; self.publish() }
-        +            DispatchQueue.main.async { self.seekFromSystem(position: max(0, seek.positionTime)) }
-                     return .success
-                 }
-                 commands.append((center.changePlaybackPositionCommand, token))
-             }
-             private func skip(_ delta: Double) {
-                 guard !isRosaryPlayback else { return }
-        -        let duration = seconds(player.currentItem?.duration ?? .zero)
-        +        let duration = trackDuration()
-                 let target = max(0, playbackPosition() + delta)
-        -        beginSeek(position: duration > 0 ? min(duration, target) : target)
-        -        ended = false; pausedAtTrackEnd = false; publish()
-        +        seekFromSystem(position: duration > 0 ? min(duration, target) : target)
-        +    }
-        +
-        +    private func seekFromSystem(position: Double) {
-        +        do { try seekTrack(position: position) }
-        +        catch { errorMessage = error.localizedDescription }
-        +        publish()
-             }
-             private func isBrandingArtwork(_ source: String) -> Bool {
-                 let decoded = source.removingPercentEncoding ?? source
-        @@ -550,7 +606,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                 guard !queueID.isEmpty, tracks.indices.contains(index) else { return }
-                 var info: [String: Any] = [MPMediaItemPropertyTitle: tracks[index]["title"] as? String ?? "",
-                     MPMediaItemPropertyAlbumTitle: album["title"] as? String ?? "", MPMediaItemPropertyArtist: album["description"] as? String ?? "",
-        -            MPMediaItemPropertyPlaybackDuration: seconds(player.currentItem?.duration ?? .zero),
-        +            MPMediaItemPropertyPlaybackDuration: trackDuration(),
-                     MPNowPlayingInfoPropertyElapsedPlaybackTime: playbackPosition(),
-                     MPNowPlayingInfoPropertyPlaybackRate: intendedPlaying && pendingSeekPosition == nil ? Double(speed) : 0,
-                     MPNowPlayingInfoPropertyDefaultPlaybackRate: Double(speed)]
-        @@ -747,7 +803,7 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                 let fingerprint = "\(queueID)|\(index)|\(intendedPlaying)|\(ended)|\(repeatMode)|\(sleepMinutes)|\(errorMessage)"
-                 let changed = fingerprint != widgetFingerprint
-                 guard force || changed || (intendedPlaying && Date().timeIntervalSince(widgetSavedAt) >= 15) else { return }
-        -        let duration = seconds(player.currentItem?.duration ?? .zero)
-        +        let duration = trackDuration()
-                 let position = playbackPosition()
-                 let upcoming = tracks.indices.dropFirst(index + 1).prefix(3).map { next in
-                     let row = tracks[next]
-        @@ -768,8 +824,8 @@ public class DharmaAudioPlugin: CAPPlugin, CAPBridgedPlugin {
-                 widgetReload?.cancel()
-                 seekTimeout?.cancel()
-                 pendingSeekCall?.reject("Audio bridge closed", "CLOSED")
-        -        if let token = timeObserver { player.removeTimeObserver(token) }
-        -        if let token = endObserver { NotificationCenter.default.removeObserver(token) }
-        +        removePlayerObservers()
-        +        removeTrackObservers()
-                 observers.forEach(NotificationCenter.default.removeObserver)
-                 commands.forEach { $0.0.removeTarget($0.1) }
-                 artworkTask?.cancel()
-        SWIFT_FIX
-        echo 'e32fc1b50f86b21d09e12b0fb3c963ef9007b2f51023aec4bd05ecaea725f116  ios/App/App/DharmaAudioPlugin.swift' | shasum -a 256 -c
     - name: Build iOS app, native plugins and UI tests once for the selected simulator
       id: simulator_build
       run: |
@@ -464,18 +228,30 @@ jobs:
         find "$app" -name PrivacyInfo.xcprivacy -print | sed "s|$app/||" > build/release-evidence/privacy-manifests.txt
         grep -q 'GoogleSignIn (7.1.0)' ios/App/Podfile.lock
         cp ios/App/Podfile.lock build/release-evidence/Podfile.lock
-    - name: Reproduce copying with the previous app bundle
-      timeout-minutes: 12
+    - name: Run the selected iOS 18.5 test
+      timeout-minutes: 21
+      env:
+        QA_METHOD: ${{ matrix.test }}
       run: |
         set -euo pipefail
         test "$TUTAM_QA_HOSTS_ISOLATED" = 1
         xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
           -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
           -derivedDataPath build/ios-simulator -resultBundlePath build/release-evidence/NativeGuestSmoke.xcresult \
-          -only-testing:AppUITests/NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost \
-          -parallel-testing-enabled NO -test-timeouts-enabled YES -default-test-execution-time-allowance 480 \
-          -maximum-test-execution-time-allowance 480 CODE_SIGNING_ALLOWED=NO test-without-building \
+          -only-testing:"AppUITests/$QA_METHOD" \
+          -parallel-testing-enabled NO -test-timeouts-enabled YES -default-test-execution-time-allowance 990 \
+          -maximum-test-execution-time-allowance 990 CODE_SIGNING_ALLOWED=NO test-without-building \
           2>&1 | tee build/release-evidence/native-ui-test.log
+    - name: Require the method to pass with no skips
+      run: |
+        set -euo pipefail
+        xcrun xcresulttool get test-results summary --path build/release-evidence/NativeGuestSmoke.xcresult > build/release-evidence/native-ui-summary.json
+        python3 - <<'PY'
+        import json
+        data=json.load(open('build/release-evidence/native-ui-summary.json'))
+        assert data['passedTests'] == 1 and data['failedTests'] == 0 and data['skippedTests'] == 0, data
+        print('Verified native UI test execution: 1 passed, 0 failed, 0 skipped')
+        PY
     - name: Collect WebView copying viewport and screenshot
       if: always()
       timeout-minutes: 2
@@ -509,7 +285,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v6
       with:
-        name: ios-current-qa-evidence
+        name: ios185-${{ strategy.job-index }}
         path: |-
           build/release-evidence/native-ui-summary.json
           build/release-evidence/native-ui-test.log
