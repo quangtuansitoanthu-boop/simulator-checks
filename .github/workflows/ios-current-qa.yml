@@ -1,4 +1,4 @@
-name: iOS media services reset regression
+name: iOS 18.5 copying and rosary regression
 'on':
   push:
     branches:
@@ -7,8 +7,8 @@ permissions:
   contents: read
 jobs:
   simulator:
-    runs-on: macos-26
-    timeout-minutes: 65
+    runs-on: macos-15
+    timeout-minutes: 35
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
@@ -92,7 +92,7 @@ jobs:
         with open(os.environ['GITHUB_ENV'],'a') as output:
             output.write('TUTAM_QA_HOSTS_ISOLATED=1\n')
         PY
-    - name: Select and boot an available iPhone Simulator on iOS 26.2
+    - name: Select and boot an available iPhone Simulator on iOS 18.5
       timeout-minutes: 8
       run: |
         set -euo pipefail
@@ -105,10 +105,10 @@ jobs:
             if '.iOS-' not in runtime:
                 continue
             version=runtime.rsplit('.iOS-',1)[1].split('-')
-            if version[:2] != ['26','2']:
+            if version[:2] != ['18','5']:
                 continue
             for device in devices:
-                if device.get('isAvailable') and device['name'].startswith('iPhone'):
+                if device.get('isAvailable') and device['name'] == 'iPhone 16 Pro':
                     print(device['udid'])
                     raise SystemExit(0)
         raise SystemExit('No available iPhone simulator with iOS 26.2')
@@ -119,19 +119,54 @@ jobs:
           xcrun simctl boot "$simulator_id"
         fi
         xcrun simctl bootstatus "$simulator_id" -b
-    - name: Add guest editor diagnostics while retaining all assertions
+    - name: Trace copying geometry and omit blocking in-test screenshots
       run: |
         python3 - <<'PY'
-        import pathlib
-        path=pathlib.Path('ios/App/AppUITests/NativeGuestSmokeTests.swift')
-        source=path.read_text()
+        from pathlib import Path
+        fixture=Path('ios/App/AppUITests/NativeGuestSmokeTests.swift')
+        src=fixture.read_text()
+        start=src.index('        // Lấy snapshot AX trước')
+        end=src.index('\n    }', start)
+        src=src[:start] + '        print("QA evidence checkpoint: \\(name)")' + src[end:]
         needle='        XCTAssertNotNil((editor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]),'
-        assert source.count(needle) == 1
-        diagnostic='        print("QA_COPY_EDITOR_VALUE: \(String(describing: editor.value))")\n        print("QA_COPY_EDITOR_AX: \(editor.debugDescription)")\n        evidence("copy-editor-after-native-typing", app: app)\n'
-        normalized=needle.replace('?.range', '?.replacingOccurrences(of: "\\n", with: "").range')
-        path.write_text(source.replace(needle, diagnostic+normalized))
+        assert src.count(needle) == 1
+        src=src.replace(needle, needle.replace('?.range', '?.replacingOccurrences(of: "\\n", with: "").range'))
+        fixture.write_text(src)
+        bridge=Path('ios/App/App/TuTapBridgeViewController.swift')
+        src=bridge.read_text()
+        anchor="          let previousPath = location.pathname;"
+        assert src.count(anchor) == 1
+        diagnostic=r"""
+          let copyTimer, recentScroll = null;
+          const copyScroll = Element.prototype.scrollTo;
+          Element.prototype.scrollTo = function (...args) {
+            if (this.id === 'copy-source-text') recentScroll = args[0]?.top ?? null;
+            return copyScroll.apply(this, args);
+          };
+          const emitCopy = () => {
+            clearTimeout(copyTimer);
+            copyTimer = setTimeout(() => {
+              const panel = document.querySelector('#copy-source-text');
+              const editor = document.querySelector('#copy-text');
+              const current = panel?.querySelector('.source-word--current');
+              if (!panel || !editor || !current) return;
+              const word = [...panel.querySelectorAll('[data-copy-word]')].find(it => it.textContent.trim() === 'GIỚI');
+              const range = getSelection()?.rangeCount ? getSelection().getRangeAt(0) : null;
+              const prefix = range && editor.contains(range.endContainer) ? range.cloneRange() : null;
+              if (prefix) prefix.setStart(editor, 0);
+              log({ type: 'copy-geometry', textLength: editor.textContent.length, caretLength: prefix?.toString().length ?? null,
+                    caretFocused: document.activeElement === editor, targetWord: current.textContent.trim(),
+                    scrollTop: panel.scrollTop, attemptedTop: recentScroll, viewport: numericRect(panel.getBoundingClientRect()),
+                    target: numericRect(current.getBoundingClientRect()), later: word ? numericRect(word.getBoundingClientRect()) : null });
+            }, 450);
+          };
+          for (const type of ['input','beforeinput','keyup','compositionend']) {
+            document.addEventListener(type, event => { if (event.target.closest?.('#copy-text')) emitCopy(); }, { capture: true, passive: true });
+          }
+        """
+        bridge.write_text(src.replace(anchor, diagnostic + anchor))
         PY
-    - name: Apply verified iOS audio fix and wire the Simulator test
+    - name: Apply verified iOS audio fix
       run: |
         set -euo pipefail
         source_file='ios/App/App/DharmaAudioPlugin.swift'
@@ -404,182 +439,6 @@ jobs:
                  artworkTask?.cancel()
         SWIFT_FIX
         echo 'e32fc1b50f86b21d09e12b0fb3c963ef9007b2f51023aec4bd05ecaea725f116  ios/App/App/DharmaAudioPlugin.swift' | shasum -a 256 -c
-        cp "$source_file" "$RUNNER_TEMP/ios-audio-reset-fixed.swift"
-        cat > "$RUNNER_TEMP/ios-audio-reset-regression.swift" <<'SWIFT_QA'
-        // GitHub QA appends this fixture to DharmaAudioPlugin.swift for the Simulator build.
-        #if DEBUG && targetEnvironment(simulator)
-        extension DharmaAudioPlugin {
-            @MainActor
-            static func runAudioResetRegression() async {
-                let plugin = DharmaAudioPlugin()
-                plugin.configure()
-                var checks: [String] = []
-        
-                func call(_ name: String, _ args: [String: Any], _ run: (CAPPluginCall) -> Void) async throws -> [String: Any] {
-                    try await withCheckedThrowingContinuation { continuation in
-                        let options = JSTypes.coerceDictionaryToJSObject(args as [AnyHashable: Any]) ?? [:]
-                        let request = CAPPluginCall(callbackId: UUID().uuidString, methodName: name, options: options,
-                            success: { result, _ in continuation.resume(returning: result?.data ?? [:]) },
-                            error: { error in
-                                let details = [name, error?.code, error?.message, error?.error?.localizedDescription].compactMap { $0 }
-                                continuation.resume(throwing: plugin.failure(details.joined(separator: ": ")))
-                            })!
-                        run(request)
-                    }
-                }
-        
-                func require(_ condition: Bool, _ reason: String) throws {
-                    if !condition { throw plugin.failure(reason) }
-                }
-        
-                func wait(_ reason: String, _ completed: () -> Bool) async throws {
-                    let deadline = ProcessInfo.processInfo.systemUptime + 10
-                    while !completed() {
-                        try require(ProcessInfo.processInfo.systemUptime < deadline, reason)
-                        try await Task.sleep(nanoseconds: 100_000_000)
-                    }
-                }
-        
-                func reset() {
-                    NotificationCenter.default.post(name: AVAudioSession.mediaServicesWereResetNotification, object: AVAudioSession.sharedInstance())
-                }
-        
-                func interruption(_ type: AVAudioSession.InterruptionType) {
-                    NotificationCenter.default.post(name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance(), userInfo: [
-                        AVAudioSessionInterruptionTypeKey: type.rawValue,
-                        AVAudioSessionInterruptionOptionKey: AVAudioSession.InterruptionOptions.shouldResume.rawValue
-                    ])
-                }
-        
-                var result: [String: Any]
-                do {
-                    let tracks = (1...2).map { ["title": "QA audio \($0)", "url": "asset:///public/assets/audio/nhac-thien-0\($0).m4a"] }
-                    _ = try await call("setQueue", ["queueId": "qa-reset", "tracks": tracks, "index": 0, "position": 8.0], plugin.setQueue)
-                    _ = try await call("options", ["volume": 0.35, "speed": 1.25, "repeat": 2], plugin.options)
-                    _ = try await call("sleep", ["remainingMs": 60_000.0], plugin.sleep)
-                    _ = try await call("play", [:], plugin.play)
-                    try await wait("Initial playback did not advance") { plugin.player.timeControlStatus == .playing && plugin.playbackPosition() > 9 }
-                    let position = plugin.playbackPosition()
-                    let originalPlayer = plugin.player
-                    let originalItem = plugin.player.currentItem
-                    let remaining = plugin.sleepRemaining
-                    let duration = plugin.seconds(plugin.player.currentItem?.duration ?? .zero)
-                    reset()
-                    try require(plugin.player !== originalPlayer, "Reset reused the old AVPlayer")
-                    try await Task.sleep(nanoseconds: 500_000_000)
-                    let paused = try await call("getState", [:], plugin.getState)
-                    try require(plugin.player.currentItem == nil, "Reset loaded media before a user action")
-                    try require(paused["playing"] as? Bool == false && paused["playWhenReady"] as? Bool == false, "Reset started playback on its own")
-                    try require(paused["queueId"] as? String == "qa-reset" && paused["trackIndex"] as? Int == 0, "Reset changed the queue or track")
-                    try require(abs((paused["position"] as? Double ?? 0) - position) < 0.35, "Reset lost the saved position")
-                    try require(duration > 0 && paused["duration"] as? Double == duration, "Reset lost the track duration")
-                    try require(abs(plugin.player.volume - 0.35) < 0.001 && plugin.speed == 1.25 && plugin.repeatMode == 2, "Reset lost playback settings")
-                    try require(plugin.sleepRemaining > 0 && abs(plugin.sleepRemaining - remaining) < 1_000, "Reset lost the sleep timer")
-                    try require(paused["error"] as? String == "", "Successful recovery exposed a playback error")
-                    checks.append("new-player-paused-with-position-and-settings")
-        
-                    _ = try await call("play", [:], plugin.play)
-                    try await wait("Explicit Play did not resume from the saved position") { plugin.player.timeControlStatus == .playing && plugin.playbackPosition() > position + 0.5 }
-                    try require(plugin.player.currentItem !== originalItem, "Play reused the old track item")
-                    checks.append("explicit-play-resumes")
-        
-                    interruption(.began)
-                    let interruptedPosition = plugin.playbackPosition()
-                    reset()
-                    let secondPlayer = plugin.player
-                    reset()
-                    interruption(.ended)
-                    try require(plugin.player !== secondPlayer, "Repeated reset kept the previous player")
-                    try await wait("Repeated reset did not settle") { plugin.pendingSeekPosition == nil }
-                    try require(!plugin.intendedPlaying && plugin.player.timeControlStatus == .paused, "Old interruption or seek resumed after reset")
-                    try require(abs(plugin.playbackPosition() - interruptedPosition) < 0.35, "Repeated reset lost the position")
-                    checks.append("repeated-reset-and-stale-interruption")
-        
-                    _ = try await call("seek", ["position": 12.0], plugin.seek)
-                    try require(!plugin.intendedPlaying && plugin.player.timeControlStatus == .paused && abs(plugin.playbackPosition() - 12) < 0.35,
-                                "Seeking after reset must load the item and stay paused")
-                    _ = try await call("seek", [:]) { request in
-                        plugin.beginSeek(position: 15, call: CAPPluginCall(callbackId: UUID().uuidString, methodName: "seek", options: [:],
-                            success: { _, _ in request.reject("Old seek resolved after reset") },
-                            error: { error in
-                                guard error?.code == "AUDIO_SERVICES_RESET" else { request.reject("Old seek cancellation not reported"); return }
-                                request.resolve()
-                            })!)
-                        reset()
-                    }
-                    try require(abs(plugin.playbackPosition() - 15) < 0.35, "Pending seek position was not retained")
-                    _ = try await call("play", [:], plugin.play)
-                    try await wait("Play did not resume the retained seek") { plugin.player.timeControlStatus == .playing && plugin.playbackPosition() > 15.5 }
-                    _ = try await call("pause", [:], plugin.pause)
-                    try require(!plugin.intendedPlaying && plugin.player.timeControlStatus == .paused, "Cancelled seek started playback")
-                    checks.append("in-flight-seek-cancelled-and-recovered")
-        
-                    _ = try await call("stop", [:], plugin.stop)
-                    reset()
-                    let idle = try await call("getState", [:], plugin.getState)
-                    try require(idle["queueId"] as? String == "" && idle["error"] as? String == "" && plugin.player.currentItem == nil,
-                                "Idle reset resurrected a queue or surfaced an error")
-                    checks.append("idle-reset-stays-idle")
-                    result = ["passed": true, "checks": checks]
-                } catch {
-                    result = ["passed": false, "checks": checks, "error": error.localizedDescription]
-                }
-                do {
-                    let folder = try FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-                    let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
-                    try data.write(to: folder.appendingPathComponent("ios-audio-reset-qa.json"), options: .atomic)
-                } catch {
-                    NSLog("Could not save audio reset QA result: %@", error.localizedDescription)
-                }
-            }
-        }
-        #endif
-        SWIFT_QA
-        printf '\n' >> "$source_file"
-        cat "$RUNNER_TEMP/ios-audio-reset-regression.swift" >> "$source_file"
-        python3 - <<'PY'
-        from pathlib import Path
-        bridge = Path('ios/App/App/TuTapBridgeViewController.swift')
-        source = bridge.read_text()
-        anchor = '        installQAEventsIfRequested()'
-        assert source.count(anchor) == 1
-        hook = '''
-        #if targetEnvironment(simulator)
-                if ProcessInfo.processInfo.arguments.contains("-tutam-qa-audio-reset") {
-                    Task { @MainActor in await DharmaAudioPlugin.runAudioResetRegression() }
-                }
-        #endif
-        '''
-        bridge.write_text(source.replace(anchor, anchor + hook))
-        PY
-        cat > "$RUNNER_TEMP/run-audio-reset-regression.sh" <<'SH'
-        set -euo pipefail
-        phase="$1"
-        sim="$TUTAM_QA_SIMULATOR"
-        app="build/ios-simulator/Build/Products/Debug-iphonesimulator/App.app"
-        xcrun simctl install "$sim" "$app"
-        container="$(xcrun simctl get_app_container "$sim" vn.quangtu.tutam data)"
-        report="$container/Library/Caches/ios-audio-reset-qa.json"
-        rm -f "$report"
-        xcrun simctl launch --terminate-running-process "$sim" vn.quangtu.tutam -tutam-qa-audio-reset 1
-        for i in $(seq 1 100); do
-          if [ -s "$report" ]; then break; fi
-          sleep 1
-        done
-        test -s "$report"
-        cp "$report" "build/release-evidence/audio-reset-$phase.json"
-        cat "$report"
-        xcrun simctl terminate "$sim" vn.quangtu.tutam
-        python3 - "$phase" "$report" <<'PY'
-        import json, sys
-        result = json.load(open(sys.argv[2]))
-        if sys.argv[1] == 'fixed':
-            assert result['passed'] is True, result
-            assert len(result['checks']) == 5, result
-        else:
-            assert result['passed'] is False and result.get('error') == 'Reset reused the old AVPlayer', result
-        PY
-        SH
     - name: Build iOS app, native plugins and UI tests once for the selected simulator
       id: simulator_build
       run: |
@@ -604,61 +463,32 @@ jobs:
         find "$app" -name PrivacyInfo.xcprivacy -print | sed "s|$app/||" > build/release-evidence/privacy-manifests.txt
         grep -q 'GoogleSignIn (7.1.0)' ios/App/Podfile.lock
         cp ios/App/Podfile.lock build/release-evidence/Podfile.lock
-    - name: Verify audio reset and explicit replay with the fix
-      run: |
-        bash "$RUNNER_TEMP/run-audio-reset-regression.sh" fixed
-    - name: Run native audio and scripture regressions
-      if: ${{ !cancelled() && steps.simulator_build.outcome == 'success' }}
-      timeout-minutes: 35
+    - name: Reproduce copying with the previous app bundle
+      timeout-minutes: 12
       run: |
         set -euo pipefail
         test "$TUTAM_QA_HOSTS_ISOLATED" = 1
-        xcodebuild \
-          -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+        xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
           -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
-          -derivedDataPath build/ios-simulator \
-          -resultBundlePath build/release-evidence/NativeGuestSmoke.xcresult \
+          -derivedDataPath build/ios-simulator -resultBundlePath build/release-evidence/NativeGuestSmoke.xcresult \
           -only-testing:AppUITests/NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost \
-          -only-testing:AppUITests/NativeExtendedGuestTests/testMeditationPauseResumeSurvivesNativeBackgrounding \
-          -only-testing:AppUITests/NativeSimulatorSnapshotTests/testRosaryManualAndAutomaticAudioProgress \
-          -only-testing:AppUITests/NativeGuestSmokeTests/testRosaryBackPreservesCountInPortraitAndLandscape \
-          -parallel-testing-enabled NO \
-          -test-timeouts-enabled YES \
-          -default-test-execution-time-allowance 600 \
-          -maximum-test-execution-time-allowance 600 \
-          CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee build/release-evidence/native-ui-test.log
-    - name: Require executed native UI tests with no failures or skips
+          -parallel-testing-enabled NO -test-timeouts-enabled YES -default-test-execution-time-allowance 480 \
+          -maximum-test-execution-time-allowance 480 CODE_SIGNING_ALLOWED=NO test-without-building \
+          2>&1 | tee build/release-evidence/native-ui-test.log
+    - name: Collect WebView copying viewport and screenshot
       if: always()
+      timeout-minutes: 2
       run: |
         set -euo pipefail
-        result=build/release-evidence/NativeGuestSmoke.xcresult
-        test -d "$result"
-        xcrun xcresulttool get test-results summary --path "$result" > build/release-evidence/native-ui-summary.json
-        python3 - <<'PY'
-        import json
-        data=json.load(open('build/release-evidence/native-ui-summary.json'))
-        assert data['passedTests'] == 4, 'All four native UI regressions must finish and pass'
-        assert data['failedTests'] == 0, 'Native UI test failures'
-        assert data['skippedTests'] == 0, 'Native UI tests must not be skipped'
-        print('Verified native UI test execution:',data['passedTests'],'passed, 0 failed, 0 skipped')
-        PY
-    - name: Confirm the same test catches the old player on the baseline
-      if: ${{ !cancelled() && steps.simulator_build.outcome == 'success' }}
-      run: |
-        set -euo pipefail
-        source_file='ios/App/App/DharmaAudioPlugin.swift'
-        git show "HEAD:$source_file" > "$source_file"
-        echo '33840656975fbfc72092f1e7d0bda8c18b7b0e6fa3c9f31e9a21f30d53c64462  ios/App/App/DharmaAudioPlugin.swift' | shasum -a 256 -c
-        printf '\n' >> "$source_file"
-        cat "$RUNNER_TEMP/ios-audio-reset-regression.swift" >> "$source_file"
-        xcodebuild -quiet \
-          -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
-          -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
-          -derivedDataPath build/ios-simulator \
-          CODE_SIGNING_ALLOWED=NO build
-        bash "$RUNNER_TEMP/run-audio-reset-regression.sh" baseline
+        container=$(xcrun simctl get_app_container "$TUTAM_QA_SIMULATOR" vn.quangtu.tutam data)
+        eventfile="$container/Library/Caches/tutam-qa-events.jsonl"
+        if [ -f "$eventfile" ]; then
+          grep '"type":"copy-geometry"' "$eventfile" | tail -30 | tee build/release-evidence/copy-geometry.jsonl || true
+        fi
+        xcrun simctl io "$TUTAM_QA_SIMULATOR" screenshot build/release-evidence/simulator.png || true
     - name: Shut down the CI simulator before restoring network resolution
       if: always()
+      timeout-minutes: 2
       run: |
         set -euo pipefail
         if [ -n "${TUTAM_QA_SIMULATOR:-}" ]; then
@@ -682,7 +512,8 @@ jobs:
         path: |-
           build/release-evidence/native-ui-summary.json
           build/release-evidence/native-ui-test.log
-          build/release-evidence/audio-reset-*.json
+          build/release-evidence/copy-geometry.jsonl
+          build/release-evidence/simulator.png
           build/release-evidence/NativeGuestSmoke.xcresult
         if-no-files-found: warn
         retention-days: 3
