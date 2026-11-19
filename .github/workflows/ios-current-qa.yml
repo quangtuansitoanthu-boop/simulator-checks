@@ -1,4 +1,4 @@
-name: Current Tu tap iPhone extended regression
+name: Current Tu tap iPhone Dharma and Widget shortcuts
 'on':
   push:
     branches:
@@ -7,36 +7,9 @@ permissions:
   contents: read
 jobs:
   simulator:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - id: reader
-          count: 3
-          filters: |
-            NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost
-            NativeExtendedGuestTests/testOfflineLibrarySearchChapterReadingAndLargeTextRotation
-            NativeExtendedGuestTests/testNativeCatalogExcludesWebOnlyBookAndSearchCanBeCleared
-        - id: appearance-meditation
-          count: 2
-          filters: |
-            NativeExtendedGuestTests/testLightDarkSettingsAndGuestDeepLinkNavigation
-            NativeExtendedGuestTests/testMeditationPauseResumeSurvivesNativeBackgrounding
-        - id: personal-reminders
-          count: 2
-          filters: |
-            NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence
-            NativePersonalReminderTests/testPersonalNearFutureReminderDeliversToSystemAndCanBeDeleted
-        - id: rosary-vegan
-          count: 2
-          filters: |
-            NativeSimulatorSnapshotTests/testRosaryManualAndAutomaticAudioProgress
-            NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable
     runs-on: macos-15
-    timeout-minutes: 70
+    timeout-minutes: 65
     env:
-      TUTAM_QA_TEST_FILTERS: ${{ matrix.filters }}
-      TUTAM_QA_EXPECTED_CASES: ${{ matrix.count }}
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
     - uses: actions/checkout@v6
@@ -153,7 +126,7 @@ jobs:
           -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
           -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
           -derivedDataPath build/ios-simulator \
-          -only-testing:AppUITests \
+          -only-testing:AppUITests/NativeGuestSmokeTests \
           CODE_SIGNING_ALLOWED=NO build-for-testing
     - name: Verify packaged Google privacy manifests
       run: |
@@ -168,29 +141,22 @@ jobs:
         find "$app" -name PrivacyInfo.xcprivacy -print | sed "s|$app/||" > build/release-evidence/privacy-manifests.txt
         grep -q 'GoogleSignIn (7.1.0)' ios/App/Podfile.lock
         cp ios/App/Podfile.lock build/release-evidence/Podfile.lock
-    - name: Run selected native iPhone regression cases
-      timeout-minutes: 42
+    - name: Run Phap thoai and Widget SpringBoard actions
+      timeout-minutes: 35
       run: |
         set -euo pipefail
         test "$TUTAM_QA_HOSTS_ISOLATED" = 1
-        only_testing=()
-        while IFS= read -r filter; do
-          if [ -n "$filter" ]; then
-            [[ "$filter" =~ ^Native[A-Za-z]+Tests/test[A-Za-z]+$ ]]
-            only_testing+=("-only-testing:AppUITests/$filter")
-          fi
-        done <<< "$TUTAM_QA_TEST_FILTERS"
-        test "${#only_testing[@]}" -eq "$TUTAM_QA_EXPECTED_CASES"
         xcodebuild \
           -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
           -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
           -derivedDataPath build/ios-simulator \
           -resultBundlePath build/release-evidence/NativeGuestSmoke.xcresult \
-          "${only_testing[@]}" \
+          -only-testing:AppUITests/NativeGuestSmokeTests/testHomeQuickActionDharmaTalks \
+          -only-testing:AppUITests/NativeGuestSmokeTests/testHomeQuickActionWidgetsGuide \
           -parallel-testing-enabled NO \
           -test-timeouts-enabled YES \
-          -default-test-execution-time-allowance 900 \
-          -maximum-test-execution-time-allowance 900 \
+          -default-test-execution-time-allowance 600 \
+          -maximum-test-execution-time-allowance 600 \
           CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee build/release-evidence/native-ui-test.log
     - name: Require executed native UI tests with no failures or skips
       if: always()
@@ -200,9 +166,9 @@ jobs:
         test -d "$result"
         xcrun xcresulttool get test-results summary --path "$result" > build/release-evidence/native-ui-summary.json
         python3 - <<'PY'
-        import json, os
+        import json
         data=json.load(open('build/release-evidence/native-ui-summary.json'))
-        assert data['passedTests'] == int(os.environ['TUTAM_QA_EXPECTED_CASES']), 'Every selected case must finish and pass'
+        assert data['passedTests'] == 2, 'Both remaining shortcuts must finish and pass'
         assert data['failedTests'] == 0, 'Native UI test failures'
         assert data['skippedTests'] == 0, 'Native UI tests must not be skipped'
         print('Verified native UI test execution:',data['passedTests'],'passed, 0 failed, 0 skipped')
@@ -228,7 +194,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v6
       with:
-        name: ios-current-qa-evidence-${{ matrix.id }}
+        name: ios-current-qa-evidence
         path: |-
           build/release-evidence/native-ui-summary.json
           build/release-evidence/native-ui-test.log

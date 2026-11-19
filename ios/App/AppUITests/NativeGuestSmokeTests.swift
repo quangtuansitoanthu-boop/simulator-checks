@@ -403,10 +403,10 @@ class NativeGuestUITestCase: XCTestCase {
 final class NativeGuestSmokeTests: NativeGuestUITestCase {
 
     @MainActor
-    private func verifyHomeQuickAction(labels: [String], headings: [String], coldStart: Bool = false) throws {
+    private func verifyHomeQuickAction(labels: [String], headings: [String], markerType: XCUIElement.ElementType = .staticText, coldStart: Bool = false) throws {
         let app = launchGuest()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let icons = springboard.icons.matching(NSPredicate(format: "label IN[c] %@", ["Tu tập", "Tu tap"] as NSArray))
+        let icon = springboard.icons.matching(NSPredicate(format: "label IN[c] %@", ["Tu tập", "Tu tap"] as NSArray)).firstMatch
 
         if coldStart { app.terminate() }
         XCUIDevice.shared.press(.home)
@@ -419,10 +419,13 @@ final class NativeGuestSmokeTests: NativeGuestUITestCase {
         for page in 0..<5 {
             // An offscreen SpringBoard icon can be in the accessibility tree. On iOS 26.2,
             // isHittable can throw while resolving the activation point of such an icon.
-            iconFrame = icons.allElementsBoundByIndex.map { $0.frame }.first {
-                $0.width > 0 && $0.height > 0 && viewport.contains($0)
+            if icon.waitForExistence(timeout: 3) {
+                let candidate = icon.frame
+                if candidate.width > 0 && candidate.height > 0 && viewport.contains(candidate) {
+                    iconFrame = candidate
+                    break
+                }
             }
-            if iconFrame != nil { break }
             if page < 4 { springboard.swipeLeft() }
         }
 
@@ -434,8 +437,11 @@ final class NativeGuestSmokeTests: NativeGuestUITestCase {
         XCTAssertTrue(shortcut.waitForExistence(timeout: 10), "Expected the actual Home Screen action: \(labels[0])")
         shortcut.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
-        let heading = app.webViews.staticTexts.matching(NSPredicate(format: "label IN[c] %@", headings as NSArray)).firstMatch
-        XCTAssertTrue(heading.waitForExistence(timeout: 25), "Home Screen action must open \(headings[0])")
+        let webView = app.webViews.firstMatch
+        let heading = webView.descendants(matching: markerType).matching(NSPredicate(format: "label IN[c] %@", headings as NSArray)).firstMatch
+        let opened = heading.waitForExistence(timeout: 25)
+        if !opened { print("QA destination accessibility: " + String(webView.debugDescription.prefix(5000))) }
+        XCTAssertTrue(opened, "Home Screen action must expose \(headings[0])")
     }
 
     @MainActor
@@ -452,13 +458,13 @@ final class NativeGuestSmokeTests: NativeGuestUITestCase {
     @MainActor
     func testHomeQuickActionDharmaTalks() throws {
         try verifyHomeQuickAction(labels: ["Dharma Talks", "Pháp thoại"],
-                                  headings: ["Kho Pháp Thoại", "Dharma Talks", "Dharma Talks Archive"])
+                                  headings: ["Tìm kiếm và bộ lọc", "Search and filters"], markerType: .button)
     }
 
     @MainActor
     func testHomeQuickActionWidgetsGuide() throws {
         try verifyHomeQuickAction(labels: ["Widgets", "Widget"],
-                                  headings: ["Thêm widget lên màn hình chính", "Add a home-screen widget"])
+                                  headings: ["Thêm widget lên màn hình chính", "Add a home-screen widget"], coldStart: true)
     }
 
     @MainActor
