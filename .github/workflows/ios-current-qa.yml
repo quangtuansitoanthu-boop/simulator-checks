@@ -189,26 +189,12 @@ jobs:
               const prefix = range && editor.contains(range.endContainer) ? range.cloneRange() : null;
               if (prefix) prefix.setStart(editor, 0);
               const key = (value) => value.normalize('NFD').toUpperCase().replace(/[^A-Z0-9]/g, '');
-              const expected = 'TINH KHAU NGHIEP CHON NGON Tu ri tu ri, ma ha tu ri tu tu ri, ta ba ha (3 lan). TINH TAM NGHIEP CHAN NGON An ta pha ba pha, truat da ta pha, dat ma ta pha, ba pha truat do ham (3 lan). TINH PHAP GIOI';
               const state = { type: 'copy-geometry', textLength: editor.textContent.length, caretLength: prefix?.toString().length ?? null,
                     caretFocused: document.activeElement === editor, targetWord: current.textContent.trim(),
                     scrollTop: panel.scrollTop, attemptedTop: recentScroll, viewport: numericRect(panel.getBoundingClientRect()),
                     target: numericRect(current.getBoundingClientRect()), later: word ? numericRect(word.getBoundingClientRect()) : null,
                     editorTailMatches: key(editor.textContent).endsWith('TINHPHAPGIOI') };
-              if (state.targetWord !== 'GIỚI') { log(state); return; }
-              const open = indexedDB.open('tutam-scripture-copying-v1');
-              open.onupgradeneeded = () => open.transaction.abort();
-              open.onerror = () => log({ ...state, draftReadable: false });
-              open.onsuccess = () => {
-                const db = open.result;
-                const txn = db.transaction('drafts', 'readonly');
-                const read = txn.objectStore('drafts').getAll();
-                read.onsuccess = () => {
-                  const saved = read.result.find(item => item.sutraId === 'dia-tang' && item.chapter === 1)?.texts[0] || '';
-                  log({ ...state, draftReadable: true, draftLength: saved.length, fullDraftMatches: key(saved) === key(expected) });
-                };
-                txn.oncomplete = () => db.close();
-              };
+              log(state);
             }, 600);
           };
           for (const type of ['input','beforeinput','keyup','compositionend']) {
@@ -276,19 +262,59 @@ jobs:
           grep '"type":"copy-geometry"' "$eventfile" | tail -30 | tee build/release-evidence/copy-geometry.jsonl || true
         fi
         xcrun simctl io "$TUTAM_QA_SIMULATOR" screenshot build/release-evidence/simulator.png || true
-    - name: Verify exact typed draft and the WebView viewport
+    - name: Verify typed WebView text and the complete native draft
       run: |
         set -euo pipefail
-        python3 - <<'PY'
-        import json, pathlib
-        observations = [json.loads(line) for line in pathlib.Path('build/release-evidence/copy-geometry.jsonl').read_text().splitlines()]
-        relevant = [x for x in observations if x.get('targetWord') == 'GIỚI' and x.get('later')]
+        container="$(xcrun simctl get_app_container "$TUTAM_QA_SIMULATOR" vn.quangtu.tutam data)"
+        python3 - "$container/Documents/scripture-copying" <<'PY'
+        import hashlib, json, pathlib, re, sys, unicodedata
+        evidence = pathlib.Path('build/release-evidence')
+        observations = [json.loads(line) for line in (evidence / 'copy-geometry.jsonl').read_text().splitlines()]
+        relevant = [item for item in observations if item.get('targetWord') == 'GIỚI' and item.get('later')]
         assert relevant, 'Missing native WebView observation at the expected word'
         final = relevant[-1]
-        view, word = final['viewport'], final['later']
-        assert final['caretFocused'] and final['editorTailMatches'] and final['fullDraftMatches'], final
-        assert final['scrollTop'] > 0 and word['y'] >= view['y'] and word['y'] + word['height'] <= view['y'] + view['height'], final
-        print('Verified native WebView editor tail, complete persisted draft and visible reference word')
+        viewport, word = final['viewport'], final['later']
+        assert final['caretFocused'] and final['editorTailMatches'], final
+        assert final['scrollTop'] > 0 and word['y'] >= viewport['y'] and word['y'] + word['height'] <= viewport['y'] + viewport['height'], final
+        expected = 'TINH KHAU NGHIEP CHON NGON Tu ri tu ri, ma ha tu ri tu tu ri, ta ba ha (3 lan). TINH TAM NGHIEP CHAN NGON An ta pha ba pha, truat da ta pha, dat ma ta pha, ba pha truat do ham (3 lan). TINH PHAP GIOI'
+        def digest(text):
+            return hashlib.sha256(text.encode()).hexdigest()
+        def key(value):
+            return re.sub('[^A-Z0-9]', '', unicodedata.normalize('NFD', value).upper())
+        latest = {}
+        root = pathlib.Path(sys.argv[1])
+        assert root.is_dir(), 'Missing native Capacitor Documents directory for drafts'
+        for slot in root.glob('*.json'):
+            name = slot.name.rsplit('.', 2)
+            if len(name) != 3 or name[1] not in ('0', '1'):
+                continue
+            base, index, _ = name
+            try:
+                envelope = json.loads(slot.read_text())
+                revision = envelope['sequence']
+                payload = envelope['payload']
+                if type(revision) is not int or revision < 0 or revision % 2 != int(index) or envelope['checksum'] != digest(payload):
+                    continue
+                value = json.loads(payload)
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            if base not in latest or latest[base][0] < revision:
+                latest[base] = revision, value
+        journal = latest.get('book-transaction', (None, []))[1]
+        overlays = dict(journal)
+        drafts = []
+        for base, (_, value) in latest.items():
+            if not isinstance(value, dict) or value.get('sutraId') != 'dia-tang' or value.get('chapter') != 1:
+                continue
+            storage_key = 'tt_copy_v1:guest:dia-tang:' + value['sourceVersion'] + ':1'
+            if base == digest(storage_key):
+                drafts.append(overlays.get(storage_key, value))
+        assert len(drafts) == 1, f'Expected one active guest draft, found {len(drafts)}'
+        actual = drafts[0]['texts'][0]
+        proof = {'length': len(actual), 'expectedLength': len(expected), 'matches': key(actual) == key(expected)}
+        (evidence / 'native-copy-draft-proof.json').write_text(json.dumps(proof))
+        assert proof['matches'], proof
+        print('Verified native WebView editor tail, complete checksummed native draft and visible reference word')
         PY
     - name: Shut down the CI simulator before restoring network resolution
       if: always()
@@ -317,6 +343,7 @@ jobs:
           build/release-evidence/native-ui-summary.json
           build/release-evidence/native-ui-test.log
           build/release-evidence/copy-geometry.jsonl
+          build/release-evidence/native-copy-draft-proof.json
           build/release-evidence/simulator.png
           build/release-evidence/NativeGuestSmoke.xcresult
         if-no-files-found: warn
