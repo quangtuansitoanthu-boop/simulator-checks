@@ -1,0 +1,1 @@
+function e(e=`selection`){if(!(typeof navigator>`u`||!navigator.vibrate))try{switch(e){case`selection`:navigator.vibrate(6);break;case`light`:navigator.vibrate(10);break;case`medium`:navigator.vibrate(20);break;case`success`:navigator.vibrate([10,40,15]);break;case`warning`:navigator.vibrate([25,40,25]);break}}catch{}}export{e as t};

@@ -1,0 +1,1 @@
+import{t as e}from"../chunks/CoiZdRc12.js";export{e as component};
