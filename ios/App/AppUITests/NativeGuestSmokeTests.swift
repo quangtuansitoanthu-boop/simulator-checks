@@ -608,10 +608,12 @@ final class NativeExtendedGuestTests: NativeGuestUITestCase {
         evidence("copy-ghost-keyboard-before-typing", app: app)
 
         editor.typeText("TINH KHAU NGHIEP CHON NGON Tu ri tu ri, ma ha tu ri tu tu ri, ta ba ha (3 lan). TINH TAM NGHIEP CHAN NGON An ta pha ba pha, truat da ta pha, dat ma ta pha, ba pha truat do ham (3 lan). TINH PHAP GIOI")
-        waitUntil("The editor must accept the text and the reference must scroll the later word into view", timeout: 20) {
-            (editor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]) != nil
-                && laterWord.exists && reference.frame.contains(laterWord.frame)
-        }
+        // Wait for WebKit to expose the moved word before requesting the editable value.
+        // Nested remote AX queries inside the waiter can interrupt the editor snapshot.
+        XCTAssertTrue(laterWord.waitForExistence(timeout: 20), "The reference must expose the later word after typing")
+        XCTAssertTrue(reference.frame.contains(laterWord.frame), "The reference must scroll the later word into view")
+        XCTAssertNotNil((editor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]),
+                        "The editor must accept the typed text")
         XCTAssertTrue(app.keyboards.firstMatch.exists)
         XCTAssertEqual(ghost.value as? String, "1")
         XCTAssertTrue(insideViewport(header, app: app))
