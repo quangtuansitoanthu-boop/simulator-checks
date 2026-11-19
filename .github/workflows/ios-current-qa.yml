@@ -118,6 +118,17 @@ jobs:
           xcrun simctl boot "$simulator_id"
         fi
         xcrun simctl bootstatus "$simulator_id" -b
+    - name: Add guest editor diagnostics while retaining all assertions
+      run: |
+        python3 - <<'PY'
+        import pathlib
+        path=pathlib.Path('ios/App/AppUITests/NativeGuestSmokeTests.swift')
+        source=path.read_text()
+        needle='        XCTAssertNotNil((editor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]),'
+        assert source.count(needle) == 1
+        diagnostic='        print("QA_COPY_EDITOR_VALUE: \(String(describing: editor.value))")\n        print("QA_COPY_EDITOR_AX: \(editor.debugDescription)")\n        evidence("copy-editor-after-native-typing", app: app)\n'
+        path.write_text(source.replace(needle, diagnostic+needle))
+        PY
     - name: Build iOS app, native plugins and UI tests once for the selected simulator
       run: |
         set -euo pipefail
@@ -197,5 +208,6 @@ jobs:
         path: |-
           build/release-evidence/native-ui-summary.json
           build/release-evidence/native-ui-test.log
+          build/release-evidence/NativeGuestSmoke.xcresult
         if-no-files-found: warn
         retention-days: 3
