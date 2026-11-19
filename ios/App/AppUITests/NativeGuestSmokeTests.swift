@@ -608,10 +608,23 @@ final class NativeExtendedGuestTests: NativeGuestUITestCase {
         evidence("copy-ghost-keyboard-before-typing", app: app)
 
         editor.typeText("TINH KHAU NGHIEP CHON NGON Tu ri tu ri, ma ha tu ri tu tu ri, ta ba ha (3 lan). TINH TAM NGHIEP CHAN NGON An ta pha ba pha, truat da ta pha, dat ma ta pha, ba pha truat do ham (3 lan). TINH PHAP GIOI")
-        // Wait for WebKit to expose the moved word before requesting the editable value.
-        // Nested remote AX queries inside the waiter can interrupt the editor snapshot.
-        XCTAssertTrue(laterWord.waitForExistence(timeout: 20), "The reference must expose the later word after typing")
-        XCTAssertTrue(reference.frame.contains(laterWord.frame), "The reference must scroll the later word into view")
+        // Accessibility can expose the word offscreen before the scroll frame.
+        // Poll fresh geometry outside XCTWaiter so that remote snapshots are not interrupted.
+        let scrollDeadline = Date().addingTimeInterval(20)
+        var referenceBounds = CGRect.zero
+        var wordBounds = CGRect.zero
+        var wordIsVisible = false
+        repeat {
+            if reference.exists && laterWord.exists {
+                referenceBounds = reference.frame
+                wordBounds = laterWord.frame
+                wordIsVisible = !wordBounds.isEmpty && referenceBounds.intersects(wordBounds) &&
+                    wordBounds.minY >= referenceBounds.minY - 1 && wordBounds.maxY <= referenceBounds.maxY + 1
+            }
+            if wordIsVisible { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < scrollDeadline
+        XCTAssertTrue(wordIsVisible, "The reference must scroll the later word into view. Reference: \(referenceBounds), word: \(wordBounds)")
         XCTAssertNotNil((editor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]),
                         "The editor must accept the typed text")
         XCTAssertTrue(app.keyboards.firstMatch.exists)
