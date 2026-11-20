@@ -29,7 +29,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         repository: quangtuansitoanthu-boop/simulator-checks
-        ref: ed8d522cdd6f8a5bcfe97355f801aafa675f60b9
+        ref: b8c22ca744bea58f6ef192c8e0a7d78d22e605a1
         path: sdk27-harness
         persist-credentials: false
     - name: Apply and verify the candidate scene migration
@@ -39,6 +39,7 @@ jobs:
         git diff --check
         echo "c23cd106fe8df5382b80793db51c6084ece4a27a93e80626cd617ea77916739e  ios/App/App/AppDelegate.swift" | shasum -a 256 -c -
         echo "5a5e2901e578dc93ea0c305a3ce786618cc4ada6d7ccdab46f1dc945cc921323  ios/App/App/Info.plist" | shasum -a 256 -c -
+        echo "5573c83f414ea6225d51b58e17e03b4954a9a4de861cacd43624b8025e6dc4f5  ios/App/Podfile" | shasum -a 256 -c -
     - uses: actions/setup-node@v6
       with:
         node-version: 24
@@ -326,7 +327,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         repository: quangtuansitoanthu-boop/simulator-checks
-        ref: ed8d522cdd6f8a5bcfe97355f801aafa675f60b9
+        ref: b8c22ca744bea58f6ef192c8e0a7d78d22e605a1
         path: sdk27-harness
         persist-credentials: false
     - name: Apply and verify the candidate scene migration
@@ -336,6 +337,7 @@ jobs:
         git diff --check
         echo "c23cd106fe8df5382b80793db51c6084ece4a27a93e80626cd617ea77916739e  ios/App/App/AppDelegate.swift" | shasum -a 256 -c -
         echo "5a5e2901e578dc93ea0c305a3ce786618cc4ada6d7ccdab46f1dc945cc921323  ios/App/App/Info.plist" | shasum -a 256 -c -
+        echo "5573c83f414ea6225d51b58e17e03b4954a9a4de861cacd43624b8025e6dc4f5  ios/App/Podfile" | shasum -a 256 -c -
     - uses: actions/setup-node@v6
       with:
         node-version: 24
