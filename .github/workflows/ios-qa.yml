@@ -137,61 +137,7 @@ jobs:
       - name: Run native cold and warm URL and foreground tests on iOS 27
         run: |
           set -euo pipefail
-          test "$TUTAM_QA_HOSTS_      - name: Isolate production hosts before native simulator UI tests
-        run: |
-          set -euo pipefail
-          mkdir -p build/release-evidence
-          python3 - <<'PY'
-          import json, os, pathlib, re, subprocess
-          proxy=subprocess.check_output(['scutil','--proxy'],text=True)
-          assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy), 'Proxy-enabled runner cannot prove production host isolation'
-          assert not any(value for key,value in os.environ.items() if key.lower() in ('http_proxy','https_proxy','all_proxy')), 'Proxy environment must be disabled for native UI isolation'
-          source=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
-          hosts=set(re.findall(r'https://([a-z0-9.-]+)',source))
-          navigation=pathlib.Path('capacitor.config.ts').read_text()
-          hosts.update(host for host in re.findall(r"'([a-z0-9.-]+)'",navigation) if host.endswith('.quangtu.vn'))
-          links=pathlib.Path('src/lib/browser/native-app-links.ts').read_text()
-          hosts.update(host for host in re.findall(r"'([a-z0-9.-]+)'",links) if host.endswith('.quangtu.vn'))
-          assert {'quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}.issubset(hosts), 'Expected native origins and legacy alias are missing'
-          assert all(re.fullmatch(r'[a-z0-9.-]+',host) for host in hosts)
-          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'tutam-native-qa-hosts.backup'
-          assert not backup.exists(), 'Refusing to replace a previous hosts backup'
-          original=pathlib.Path('/etc/hosts').read_bytes()
-          backup.write_bytes(original)
-          lines=[]
-          for line in original.decode().splitlines():
-              address,separator,comment=line.partition('#')
-              parts=address.split()
-              if len(parts)>1 and any(host.lower() in hosts for host in parts[1:]):
-                  aliases=[host for host in parts[1:] if host.lower() not in hosts]
-                  if aliases:
-                      lines.append(parts[0]+'\t'+' '.join(aliases)+((' #'+comment) if separator else ''))
-                  elif separator:
-                      lines.append('#'+comment)
-              else:
-                  lines.append(line)
-          lines.append('# Tu Tap native CI: production-host isolation, not full offline mode')
-          for host in sorted(hosts):
-              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
-          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
-          pathlib.Path('build/release-evidence/production-hosts.json').write_text(json.dumps(sorted(hosts),indent=2))
-          PY
-          sudo dscacheutil -flushcache
-          python3 - <<'PY'
-          import ipaddress, json, os, pathlib, socket
-          hosts=json.loads(pathlib.Path('build/release-evidence/production-hosts.json').read_text())
-          proof={}
-          for host in hosts:
-              proof[host]={}
-              for family,name in [(socket.AF_INET,'ipv4'),(socket.AF_INET6,'ipv6')]:
-                  addresses=sorted({entry[4][0] for entry in socket.getaddrinfo(host,443,family,socket.SOCK_STREAM)})
-                  assert addresses and all(ipaddress.ip_address(address).is_loopback for address in addresses), 'Production host still resolves externally: '+host
-                  proof[host][name]=addresses
-          pathlib.Path('build/release-evidence/production-host-isolation.json').write_text(json.dumps({'scope':'production hosts only; not full offline','addresses':proof},indent=2))
-          with open(os.environ['GITHUB_ENV'],'a') as output:
-              output.write('TUTAM_QA_HOSTS_ISOLATED=1\n')
-          PY
-D" = 1
+          test "$TUTAM_QA_HOSTS_ISOLATED" = 1
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k in sorted(d) if ".iOS-27-" in k for x in d[k] if x["name"].startswith("iPhone") and "Duo" not in x["name"]))')
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
