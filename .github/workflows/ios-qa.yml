@@ -1,99 +1,214 @@
-name: iOS simulator QA
+name: iOS SDK 27 release verification
 on:
-  push:
-    paths: ['.github/workflows/ios-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  simulator:
-    runs-on: macos-15
-    timeout-minutes: 28
+  verify:
+    name: SDK 27 archive and scene tests (${{ matrix.source }})
+    runs-on: xcode-27
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - source: approved-1307
+            ref: fd0581685d6a5017db3747601cd9d670b7d2f629
+          - source: release-main
+            ref: 9fb45709252eb7677b2a78586c10f5888e415c7a
     env:
-      JAVA_HOME: /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
     steps:
-      - name: Boot simulator and verify archive
-        timeout-minutes: 7
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p evidence app
-          curl -fLsS --retry 3 -o app.zip 'https://github.com/quangtuansitoanthu-boop/simulator-checks/releases/download/qa-20261118/TuTap-routine-step-simulator.app.zip'
-          echo 'a5b10762fee32ac97205626e1cb69449551a6e3873b7d51c7722997817756511  app.zip' | shasum -a 256 -c
-          unzip -q app.zip -d app
-          udid=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k in sorted(d,reverse=True) if "iOS" in k for x in d[k] if x["name"].startswith("iPhone")))')
-          echo "SIM_ID=$udid" >> "$GITHUB_ENV"
-          xcrun simctl boot "$udid"
-          xcrun simctl bootstatus "$udid" -b
-      - name: Install QA bundle
-        timeout-minutes: 4
-        run: |
-          app=$(find app -name '*.app' -type d -print -quit)
-          xcrun simctl install "$SIM_ID" "$app"
-      - name: Launch the native app
-        timeout-minutes: 3
-        run: |
-          xcrun simctl launch "$SIM_ID" vn.quangtu.tutam -AppleLanguages '(vi)' -AppleLocale vi_VN
-          xcrun simctl io "$SIM_ID" screenshot evidence/launch.png
-      - name: Run UI scenarios
-        shell: bash
-        run: |
-          set -euo pipefail
-          export JAVA_HOME=$( /usr/libexec/java_home -v 17 )
-          export PATH="$JAVA_HOME/bin:$HOME/.maestro/bin:$PATH"
-          curl -fsSL https://get.maestro.mobile.dev | bash
-          mkdir -p flows
-          cat > flows/routine.yaml <<'EOF'
-          appId: vn.quangtu.tutam
-          ---
-          - launchApp
-          - tapOn:
-              text: 'Không cho phép|Don.t Allow'
-              optional: true
-          - tapOn: 'Tu tập'
-          - scrollUntilVisible:
-              element: 'Thời khóa tu tập'
-              direction: DOWN
-          - tapOn: 'Thời khóa tu tập'
-          - tapOn: 'Tạo thời khóa mới'
-          - tapOn: 'Thêm bước'
-          - tapOn: 'Thiền định'
-          - tapOn: 'Thêm bước'
-          - tapOn: 'Lễ Phật & Sám Hối'
-          - tapOn: 'Lưu thời khóa'
-          - tapOn: 'Bắt đầu Thời khoá sáng'
-          - tapOn: 'Bắt đầu'
-          - tapOn: 'Kết thúc sớm'
-          - extendedWaitUntil:
-              visible: '.*Bước 2/2.*'
-              timeout: 20000
-          - takeScreenshot: evidence/routine-next-step
-          EOF
-          cat > flows/navigation.yaml <<'EOF'
-          appId: vn.quangtu.tutam
-          ---
-          - launchApp
-          - tapOn:
-              text: 'Không cho phép|Don.t Allow'
-              optional: true
-          - assertVisible: 'Cá nhân'
-          - tapOn: 'Kinh sách'
-          - assertVisible: 'Kinh sách'
-          - takeScreenshot: evidence/library
-          - tapOn: 'Tu tập'
-          - scrollUntilVisible:
-              element: 'Thời khóa tu tập'
-              direction: DOWN
-          - assertVisible: 'Thời khóa tu tập'
-          - takeScreenshot: evidence/practice
-          - tapOn: 'Cá nhân'
-          - assertVisible: 'Cá nhân'
-          - takeScreenshot: evidence/profile
-          EOF
-          maestro --device "$SIM_ID" test --format junit --output evidence/results.xml --debug-output evidence/debug flows
-      - name: Save test evidence
-        if: always()
-        uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v6
         with:
-          name: simulator-evidence
-          path: evidence/
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: ${{ matrix.ref }}
+          path: app
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Apply exact candidate scene migration
+        run: |
+          git apply --check "../harness/${{ matrix.source }}.patch"
+          git apply "../harness/${{ matrix.source }}.patch"
+          git diff --check
+          git diff --stat
+      - name: Verify Apple toolchain
+        run: |
+          xcodebuild -version
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          if [[ ! "$sdk" =~ ^[0-9]+([.][0-9]+)*$ ]] || (( ${sdk%%.*} < 27 )); then
+            echo "::error::App Store builds require iOS SDK 27 or later. Selected SDK: $sdk"
+            exit 1
+          fi
+          echo "Using iOS SDK $sdk"
+          pod --version
+      - name: Prepare Capacitor app and locked dependencies
+        run: |
+          npm ci
+          npm run build:mobile -- --platform ios
+      - name: Archive for iPhone and verify app and widget
+        run: |
+          set -euo pipefail
+          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO archive
+          app="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          expected_sdk="iphoneos$(xcrun --sdk iphoneos --show-sdk-version)"
+          for bundle in "$app" "$app/PlugIns/CalendarWidget.appex"; do
+            built_sdk="$(plutil -extract DTSDKName raw -o - "$bundle/Info.plist")"
+            echo "$(basename "$bundle") built with $built_sdk"
+            if [[ "$built_sdk" != "$expected_sdk" ]]; then
+              echo "::error::Expected $expected_sdk in $bundle/Info.plist"
+              exit 1
+            fi
+          done
+          for bundle in "$app" "$app/PlugIns/CalendarWidget.appex"; do
+            test "$(plutil -extract MinimumOSVersion raw -o - "$bundle/Info.plist")" = 15.0
+            binary=$(plutil -extract CFBundleExecutable raw -o - "$bundle/Info.plist")
+            xcrun vtool -arch arm64 -show-build "$bundle/$binary" | tee "$RUNNER_TEMP/binary-version"
+            awk '$1 == "sdk" && int($2) >= 27 {found=1} END {exit !found}' "$RUNNER_TEMP/binary-version"
+          done
+          test -d "$app/Base.lproj/Main.storyboardc"
+          test -d "$app/Base.lproj/LaunchScreen.storyboardc"
+      - name: Isolate production hosts before native simulator UI tests
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+          proxy=subprocess.check_output(['scutil','--proxy'],text=True)
+          assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy), 'Proxy-enabled runner cannot prove production host isolation'
+          assert not any(value for key,value in os.environ.items() if key.lower() in ('http_proxy','https_proxy','all_proxy')), 'Proxy environment must be disabled for native UI isolation'
+          source=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+          hosts=set(re.findall(r'https://([a-z0-9.-]+)',source))
+          navigation=pathlib.Path('capacitor.config.ts').read_text()
+          hosts.update(host for host in re.findall(r"'([a-z0-9.-]+)'",navigation) if host.endswith('.quangtu.vn'))
+          links=pathlib.Path('src/lib/browser/native-app-links.ts').read_text()
+          hosts.update(host for host in re.findall(r"'([a-z0-9.-]+)'",links) if host.endswith('.quangtu.vn'))
+          assert {'quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}.issubset(hosts), 'Expected native origins and legacy alias are missing'
+          assert all(re.fullmatch(r'[a-z0-9.-]+',host) for host in hosts)
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'tutam-native-qa-hosts.backup'
+          assert not backup.exists(), 'Refusing to replace a previous hosts backup'
+          original=pathlib.Path('/etc/hosts').read_bytes()
+          backup.write_bytes(original)
+          lines=[]
+          for line in original.decode().splitlines():
+              address,separator,comment=line.partition('#')
+              parts=address.split()
+              if len(parts)>1 and any(host.lower() in hosts for host in parts[1:]):
+                  aliases=[host for host in parts[1:] if host.lower() not in hosts]
+                  if aliases:
+                      lines.append(parts[0]+'\t'+' '.join(aliases)+((' #'+comment) if separator else ''))
+                  elif separator:
+                      lines.append('#'+comment)
+              else:
+                  lines.append(line)
+          lines.append('# Tu Tap native CI: production-host isolation, not full offline mode')
+          for host in sorted(hosts):
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          pathlib.Path('build/release-evidence/production-hosts.json').write_text(json.dumps(sorted(hosts),indent=2))
+          PY
+          sudo dscacheutil -flushcache
+          python3 - <<'PY'
+          import ipaddress, json, os, pathlib, socket
+          hosts=json.loads(pathlib.Path('build/release-evidence/production-hosts.json').read_text())
+          proof={}
+          for host in hosts:
+              proof[host]={}
+              for family,name in [(socket.AF_INET,'ipv4'),(socket.AF_INET6,'ipv6')]:
+                  addresses=sorted({entry[4][0] for entry in socket.getaddrinfo(host,443,family,socket.SOCK_STREAM)})
+                  assert addresses and all(ipaddress.ip_address(address).is_loopback for address in addresses), 'Production host still resolves externally: '+host
+                  proof[host][name]=addresses
+          pathlib.Path('build/release-evidence/production-host-isolation.json').write_text(json.dumps({'scope':'production hosts only; not full offline','addresses':proof},indent=2))
+          with open(os.environ['GITHUB_ENV'],'a') as output:
+              output.write('TUTAM_QA_HOSTS_ISOLATED=1\n')
+          PY
+      - name: Run native cold and warm URL and foreground tests on iOS 27
+        run: |
+          set -euo pipefail
+          test "$TUTAM_QA_HOSTS_      - name: Isolate production hosts before native simulator UI tests
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+          proxy=subprocess.check_output(['scutil','--proxy'],text=True)
+          assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy), 'Proxy-enabled runner cannot prove production host isolation'
+          assert not any(value for key,value in os.environ.items() if key.lower() in ('http_proxy','https_proxy','all_proxy')), 'Proxy environment must be disabled for native UI isolation'
+          source=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+          hosts=set(re.findall(r'https://([a-z0-9.-]+)',source))
+          navigation=pathlib.Path('capacitor.config.ts').read_text()
+          hosts.update(host for host in re.findall(r"'([a-z0-9.-]+)'",navigation) if host.endswith('.quangtu.vn'))
+          links=pathlib.Path('src/lib/browser/native-app-links.ts').read_text()
+          hosts.update(host for host in re.findall(r"'([a-z0-9.-]+)'",links) if host.endswith('.quangtu.vn'))
+          assert {'quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}.issubset(hosts), 'Expected native origins and legacy alias are missing'
+          assert all(re.fullmatch(r'[a-z0-9.-]+',host) for host in hosts)
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'tutam-native-qa-hosts.backup'
+          assert not backup.exists(), 'Refusing to replace a previous hosts backup'
+          original=pathlib.Path('/etc/hosts').read_bytes()
+          backup.write_bytes(original)
+          lines=[]
+          for line in original.decode().splitlines():
+              address,separator,comment=line.partition('#')
+              parts=address.split()
+              if len(parts)>1 and any(host.lower() in hosts for host in parts[1:]):
+                  aliases=[host for host in parts[1:] if host.lower() not in hosts]
+                  if aliases:
+                      lines.append(parts[0]+'\t'+' '.join(aliases)+((' #'+comment) if separator else ''))
+                  elif separator:
+                      lines.append('#'+comment)
+              else:
+                  lines.append(line)
+          lines.append('# Tu Tap native CI: production-host isolation, not full offline mode')
+          for host in sorted(hosts):
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          pathlib.Path('build/release-evidence/production-hosts.json').write_text(json.dumps(sorted(hosts),indent=2))
+          PY
+          sudo dscacheutil -flushcache
+          python3 - <<'PY'
+          import ipaddress, json, os, pathlib, socket
+          hosts=json.loads(pathlib.Path('build/release-evidence/production-hosts.json').read_text())
+          proof={}
+          for host in hosts:
+              proof[host]={}
+              for family,name in [(socket.AF_INET,'ipv4'),(socket.AF_INET6,'ipv6')]:
+                  addresses=sorted({entry[4][0] for entry in socket.getaddrinfo(host,443,family,socket.SOCK_STREAM)})
+                  assert addresses and all(ipaddress.ip_address(address).is_loopback for address in addresses), 'Production host still resolves externally: '+host
+                  proof[host][name]=addresses
+          pathlib.Path('build/release-evidence/production-host-isolation.json').write_text(json.dumps({'scope':'production hosts only; not full offline','addresses':proof},indent=2))
+          with open(os.environ['GITHUB_ENV'],'a') as output:
+              output.write('TUTAM_QA_HOSTS_ISOLATED=1\n')
+          PY
+D" = 1
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k in sorted(d) if ".iOS-27-" in k for x in d[k] if x["name"].startswith("iPhone") and "Duo" not in x["name"]))')
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,id=$device" \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/SceneTests.xcresult" \
+            -only-testing:AppUITests/NativeGuestSmokeTests/testMotionSettingPersistsAcrossNativeDeepLinks \
+            -only-testing:AppUITests/NativeExtendedGuestTests/testMeditationPauseResumeSurvivesNativeBackgrounding \
+            CODE_SIGNING_ALLOWED=NO test
+          xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/SceneTests.xcresult" | python3 -c 'import sys,json; r=json.load(sys.stdin); print(r); assert r["passedTests"]==2 and r["failedTests"]==r["skippedTests"]==0'
+      - name: Read failed native test assertions
+        if: failure()
+        run: |
+          if [[ -d "$RUNNER_TEMP/SceneTests.xcresult" ]]; then
+            xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/SceneTests.xcresult"
+          fi
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
