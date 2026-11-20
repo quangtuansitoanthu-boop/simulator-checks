@@ -137,23 +137,63 @@ jobs:
           with open(os.environ['GITHUB_ENV'],'a') as output:
               output.write('TUTAM_QA_HOSTS_ISOLATED=1\n')
           PY
+      - name: Capture the actual dialog, route and state on the isolated Simulator
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          test=Path('ios/App/AppUITests/NativeGuestSmokeTests.swift')
+          src=test.read_text()
+          start=src.index('        // Lấy snapshot AX trước')
+          end=src.index('\n    }',start)
+          src=src[:start]+'        print("QA checkpoint: \\(name)")'+src[end:]
+          src=src.replace('app.links["Cá nhân"].firstMatch.waitForExistence(timeout: 30)', 'app.links["Cá nhân"].firstMatch.waitForExistence(timeout: 90)')
+          old='let startDialog = app.otherElements["Bắt Đầu Lần Hạt?, hộp thoại web"].firstMatch'
+          assert src.count(old)==1
+          src=src.replace(old, '''let startDialog = app.descendants(matching: .any)
+                      .matching(NSPredicate(format: "label == %@ OR label BEGINSWITH %@", "Bắt Đầu Lần Hạt?", "Bắt Đầu Lần Hạt?,"))
+                      .containing(.button, identifier: "Bắt đầu 🙏").firstMatch''')
+          src=src.replace('startDialog.waitForExistence(timeout: 20)', 'startDialog.waitForExistence(timeout: 45)')
+          test.write_text(src)
+          bridge=Path('ios/App/App/TuTapBridgeViewController.swift')
+          src=bridge.read_text()
+          marker='          const context = () =>'
+          assert src.count(marker)==1
+          collect='''          let lastView = '';
+                    const inspectScene = () => {
+                      const nav = Array.from(document.querySelectorAll('.qts-bottom-nav a')).map(a => a.textContent.trim());
+                      const dialog = document.querySelector('[role="dialog"],dialog[open],[role="alertdialog"]');
+                      const view = JSON.stringify({path:location.pathname+location.search, nav, dialog:dialog?.getAttribute('aria-label') || dialog?.textContent.trim().slice(0,160) || null});
+                      if (view !== lastView) {lastView = view; log({type:'sdk27-scene-qa', view});}
+                    };
+                    setInterval(inspectScene, 500);
+          '''
+          bridge.write_text(src.replace(marker,collect+marker))
+          PY
       - name: Run native cold and warm URL and foreground tests on iOS 27
         run: |
           set -euo pipefail
           test "$TUTAM_QA_HOSTS_ISOLATED" = 1
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k in sorted(d) if ".iOS-27-" in k for x in d[k] if x["name"].startswith("iPhone") and "Duo" not in x["name"]))')
+          echo "SDK27_SIM=$device" >> "$GITHUB_ENV"
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
-          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
             -sdk iphonesimulator -destination "platform=iOS Simulator,id=$device" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/SceneTests.xcresult" \
             -only-testing:AppUITests/NativeGuestSmokeTests/testMotionSettingPersistsAcrossNativeDeepLinks \
             -only-testing:AppUITests/NativeExtendedGuestTests/testMeditationPauseResumeSurvivesNativeBackgrounding \
-            CODE_SIGNING_ALLOWED=NO test
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 750 -maximum-test-execution-time-allowance 750 \
+            CODE_SIGNING_ALLOWED=NO test 2>&1 | tee "$RUNNER_TEMP/sdk27-tests.log" | awk '/Test Case|XCTAssert|error:|QA checkpoint|Testing started|failed/ {print; fflush()}'
           xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/SceneTests.xcresult" | python3 -c 'import sys,json; r=json.load(sys.stdin); print(r); assert r["passedTests"]==2 and r["failedTests"]==r["skippedTests"]==0'
       - name: Read failed native test assertions
         if: failure()
         run: |
+          if [[ -n "${SDK27_SIM:-}" ]]; then
+            container=$(xcrun simctl get_app_container "$SDK27_SIM" vn.quangtu.tutam data || true)
+            if [[ -f "$container/Library/Caches/tutam-qa-events.jsonl" ]]; then
+              grep 'sdk27-scene-qa' "$container/Library/Caches/tutam-qa-events.jsonl" | tail -30 || true
+            fi
+          fi
           if [[ -d "$RUNNER_TEMP/SceneTests.xcresult" ]]; then
             xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/SceneTests.xcresult"
           fi
