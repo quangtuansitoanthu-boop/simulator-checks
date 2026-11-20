@@ -1,6 +1,9 @@
 name: iOS SDK 27 release verification
 on:
   workflow_dispatch:
+  push:
+    branches: ['codex/ios27-sdk-20261120']
+    paths: ['.github/workflows/ios-qa.yml', '*.patch']
 permissions:
   contents: read
 jobs:
