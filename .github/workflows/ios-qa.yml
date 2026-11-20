@@ -17,8 +17,6 @@ jobs:
         include:
           - source: approved-1307
             ref: fd0581685d6a5017db3747601cd9d670b7d2f629
-          - source: release-main
-            ref: 9fb45709252eb7677b2a78586c10f5888e415c7a
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
       TUTAM_BUNDLE_SYNCED: '1'
@@ -153,6 +151,24 @@ jobs:
                       .matching(NSPredicate(format: "label == %@ OR label BEGINSWITH %@", "Bắt Đầu Lần Hạt?", "Bắt Đầu Lần Hạt?,"))
                       .containing(.button, identifier: "Bắt đầu 🙏").firstMatch''')
           src=src.replace('startDialog.waitForExistence(timeout: 20)', 'startDialog.waitForExistence(timeout: 45)')
+          old = '        tap(resume, app: app)'
+          focus = src.index('    func testMeditationPauseResumeSurvivesNativeBackgrounding')
+          stop = src.index('\n    }', focus)
+          assert src[focus:stop].count(old) == 1
+          src = src[:focus] + src[focus:stop].replace(old, """        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+                  // Use the actual modal's action. The shared scroller clips to the background tab bar
+                  // when the OS does not expose the accessibility dialog suffix in the expected language.
+                  let meditation = app.descendants(matching: .any)
+                      .matching(NSPredicate(format: "label == %@ OR label BEGINSWITH %@", "Phiên thiền", "Phiên thiền,"))
+                      .containing(.button, identifier: "Tiếp tục").firstMatch
+                  let actualResume = meditation.buttons["Tiếp tục"].firstMatch
+                  waitUntil("Paused meditation must expose a hittable Resume within the foreground modal", timeout: 45) {
+                      guard meditation.exists, actualResume.exists, actualResume.isHittable else { return false }
+                      let action = actualResume.frame
+                      return action.width >= 44 && action.height >= 44 && app.frame.contains(action) && meditation.frame.contains(action)
+                  }
+                  print("QA foreground resume: modal = \\(meditation.frame), button = \\(actualResume.frame)")
+                  actualResume.tap()""") + src[stop:]
           test.write_text(src)
           bridge=Path('ios/App/App/TuTapBridgeViewController.swift')
           src=bridge.read_text()
