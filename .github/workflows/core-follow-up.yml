@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   core:
-    name: Core only - full 4333 assertions and 11 suites
+    name: Core only - full 4336 assertions and 11 suites
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -42,6 +42,8 @@ jobs:
           set -euo pipefail
           echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | sha256sum -c -
           python3 ../harness/apply-current.py .
+          python3 ../harness/apply-ui-fixes.py .
+          python3 ../harness/apply-current-follow-up.py .
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -86,8 +88,8 @@ jobs:
             'sourceManifestSha256':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7',
             'runtimeManifestSha256':'cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7',
             'testSupportManifestSha256':'4075d004b03ea59c44337cb9296713fc22a6e21bfe9d2c2ebd90dd17d97a8e9c'}
-          valid=(len(lines)==11 and passed+failed+skipped+todo==4333 and failed==0 and todo==0
-            and skipped<=3 and passed>=4330 and summary['typecheckClean'])
+          valid=(len(lines)==11 and passed+failed+skipped+todo==4336 and failed==0 and todo==0
+            and skipped<=3 and passed>=4333 and summary['typecheckClean'])
           summary['gate']='PASSED' if valid else 'FAILED'
           output=pathlib.Path('qa-evidence/core-summary.json');output.parent.mkdir(parents=True,exist_ok=True)
           output.write_text(json.dumps(summary,indent=2)+'\n',encoding='utf-8')
