@@ -1,0 +1,44 @@
+name: Diagnose isolated WebKit IndexedDB persistence
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/webkit-idb-probe.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with: {path: harness, persist-credentials: false}
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - run: python3 ../harness/apply-current.py .
+      - uses: actions/setup-node@v6
+        with: {node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json}
+      - run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps webkit
+      - name: Compare plain JSON Blob and application storage on fresh contexts
+        run: |
+          set -euo pipefail
+          echo '0e4fffdb6a1cf4e5ed2e7612620456d76a7204da67193cc3eb19803169ac327f  ../harness/webkit-idb-diagnostic.mjs' | sha256sum -c -
+          mkdir -p build/github-ui-evidence
+          node ../harness/webkit-idb-diagnostic.mjs . build/github-ui-evidence/idb-probe 2>&1 | tee build/github-ui-evidence/idb-probe.log
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: webkit-idb-probe-${{ github.run_id }}
+          path: app/build/github-ui-evidence/
+          if-no-files-found: error
+          retention-days: 7
