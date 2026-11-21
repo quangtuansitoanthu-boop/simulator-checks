@@ -1,5 +1,6 @@
 """Run every native iOS case in one group against matching, prebuilt products."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -112,6 +113,50 @@ def collect(args, index, identifier, record):
     return record
 
 
+def collect_qa_events(args, case_dir, record):
+    """Snapshot this install's existing sanitized log before the next uninstall."""
+    if record.get("freshInstallCompleted") is not True:
+        record["qaEvents"] = {"status": "not-installed"}
+        return
+    warnings = list(record.get("evidenceWarnings", []))
+    try:
+        if (os.environ.get("GITHUB_ACTIONS") != "true"
+                or os.environ.get("TUTAM_QA_HOSTS_ISOLATED") != "1"
+                or not args.simulator):
+            raise RuntimeError("QA event collection requires isolated GitHub CI")
+        container = text_command([
+            "xcrun", "simctl", "get_app_container", args.simulator, BUNDLE, "data"])
+        if container.returncode:
+            raise RuntimeError("Current QA app data container is unavailable")
+        root = Path(container.stdout.strip())
+        if not root.is_absolute() or not root.is_dir():
+            raise RuntimeError("Invalid QA app data container")
+        root = root.resolve(strict=True)
+        source = root / "Library/Caches/tutam-qa-events.jsonl"
+        if source.is_symlink() or not source.resolve(strict=True).is_relative_to(root):
+            raise RuntimeError("QA event file escapes the current app container")
+        if not source.is_file() or source.stat().st_size > 256 * 1024:
+            raise RuntimeError("QA event file is absent or exceeds its writer's cap")
+        payload = source.read_bytes()
+        if len(payload) > 256 * 1024:
+            raise RuntimeError("QA event snapshot exceeds its writer's cap")
+        lines = payload.decode("utf-8").splitlines()
+        if any(not isinstance(json.loads(line), dict) for line in lines):
+            raise RuntimeError("QA event snapshot must contain JSON objects")
+        destination = case_dir / "qa-events.jsonl"
+        destination.write_bytes(payload)
+        record["qaEvents"] = {
+            "status": "copied", "file": destination.name, "bytes": len(payload),
+            "events": len(lines), "sha256": hashlib.sha256(payload).hexdigest(),
+            "source": "current-install Library/Caches/tutam-qa-events.jsonl",
+        }
+    except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as error:
+        # Missing diagnostics must not replace the real XCTest result or retry it.
+        record["qaEvents"] = {"status": "unavailable"}
+        warnings.append("qa-events: " + str(error))
+    record["evidenceWarnings"] = warnings
+
+
 def run_case(args, index, identifier, xctestrun, app):
     case_dir = args.evidence / f"case-{index:02d}"
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -170,6 +215,7 @@ def run_case(args, index, identifier, xctestrun, app):
         record["infrastructureError"] = str(error)
     finally:
         record["finishedAt"] = time.time()
+        collect_qa_events(args, case_dir, record)
         write_json(record_path, record)
     return collect(args, index, identifier, record)
 
