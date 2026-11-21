@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
+  "baselineCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
+  "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
+  "runtimeManifestSha256": "cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7",
+  "archive": "test-support.tar.gz",
+  "archiveSha256": "1aea2c1f7a627bdfdaa503807bc49573a27e225e54d90d1dda32690e0a9acb52",
+  "archiveBytes": 1652,
+  "fileCount": 2,
+  "totalBytes": 4957,
+  "files": [
+    {
+      "path": ".codex/environments/environment.toml",
+      "bytes": 445,
+      "sha256": "8784c68c5154ff3253de4e536deb97134e45478403168c8269b03ae0db7a3edf",
+      "baselineBlobSha1": null
+    },
+    {
+      "path": ".github/workflows/deploy-cloudflare-worker.yml",
+      "bytes": 4512,
+      "sha256": "8207fbdf0059b938b24bc3f704084324d20b9e9529a2b19f8b0507b7be70593a",
+      "baselineBlobSha1": null
+    }
+  ],
+  "consumers": [
+    {
+      "path": "tests/deployment/codex-worktree-environment.test.ts",
+      "sha256": "c7c2e034ac5ce0981c387a3ae54d31fd62108351e6d098fb1a9b46d9427731d5"
+    },
+    {
+      "path": "tests/deployment/production-workflow-release-gate.test.ts",
+      "sha256": "1e311c474b30dbe05ae751e5d87dade6f0941e4822d6a47fdf88187d048cb3f6"
+    },
+    {
+      "path": "tests/deployment/release-safety.test.ts",
+      "sha256": "8bc43ae296372bf3f2ffc6d89e5513f6cad48647d17b8848c9dc4ae9b886c73f"
+    }
+  ],
+  "sensitiveFindings": [],
+  "scope": "Only two literal filesystem contract inputs. Copy into the nested app checkout only; never execute setup or deployment. GitHub secret references are not secret values."
+}
