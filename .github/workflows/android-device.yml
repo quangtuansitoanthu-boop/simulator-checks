@@ -88,17 +88,18 @@ jobs:
           test "$ANDROID_AVD_HOME" = "$RUNNER_TEMP/tutam-ci-avd"
           test "$ANDROID_EMULATOR_HOME" = "$RUNNER_TEMP/tutam-ci-emulator"
           sdk="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          test -x "$sdk/cmdline-tools/latest/bin/sdkmanager"
-          test -x "$sdk/cmdline-tools/latest/bin/avdmanager"
-          test -x "$sdk/emulator/emulator"
-          test -e /dev/kvm
+          test -x "$sdk/cmdline-tools/latest/bin/sdkmanager" || { echo "Missing sdkmanager at $sdk"; exit 1; }
+          test -x "$sdk/cmdline-tools/latest/bin/avdmanager" || { echo "Missing avdmanager at $sdk"; exit 1; }
+          test -e /dev/kvm || { echo "Hosted runner KVM device is missing"; exit 1; }
           sudo chmod a+rw /dev/kvm
           echo "ADB=$sdk/platform-tools/adb" >> "$GITHUB_ENV"
           echo "CI_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
           mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_EMULATOR_HOME"
           test -z "$(find "$ANDROID_AVD_HOME" -mindepth 1 -maxdepth 1 -print -quit)"
           printf 'y\n%.0s' {1..100} | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses > build/android-device-evidence/sdk-licenses.log
-          "$sdk/cmdline-tools/latest/bin/sdkmanager" 'system-images;android-36;google_apis;x86_64' > build/android-device-evidence/sdk-image.log
+          "$sdk/cmdline-tools/latest/bin/sdkmanager" --list_installed > build/android-device-evidence/sdk-before.log
+          "$sdk/cmdline-tools/latest/bin/sdkmanager" emulator platform-tools 'system-images;android-36;google_apis;x86_64' > build/android-device-evidence/sdk-image.log
+          test -x "$sdk/emulator/emulator" || { echo "Emulator package did not install"; exit 1; }
           printf 'no\n' | "$sdk/cmdline-tools/latest/bin/avdmanager" create avd --name Pixel_7 --package 'system-images;android-36;google_apis;x86_64' --device pixel_7
           "$sdk/platform-tools/adb" start-server
           if "$sdk/platform-tools/adb" devices | grep -q '^emulator-'; then echo 'Refusing a second emulator'; exit 1; fi
