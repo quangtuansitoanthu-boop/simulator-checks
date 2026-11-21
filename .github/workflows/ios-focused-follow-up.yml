@@ -1,0 +1,496 @@
+name: Focused iOS harness follow-up - 8 actual native executions
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/ios-focused-follow-up.yml']
+permissions:
+  contents: read
+concurrency:
+  group: current-native-focused-follow-up-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ios-build:
+    name: Build current iOS ${{ matrix.platform.ios }} products once
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        platform:
+          - ios: '18.5'
+            runner: macos-15
+            xcode: /Applications/Xcode_26.3.app/Contents/Developer
+          - ios: '27.0'
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.1.app/Contents/Developer
+    env:
+      DEVELOPER_DIR: ${{ matrix.platform.xcode }}
+      IOS_RUNTIME: ${{ matrix.platform.ios }}
+      MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+      IOS_HARNESS_FIX_MANIFEST_SHA256: b4d4cf5de74ed218b33266ab56f3e015965d0d453aebd3d58e8a9e2c3172a8cb
+      IOS_HARNESS_SHA256: 2da6684d4d67518118217eea11dbe2129f755f41af8b655e66a3633fe66a68cc
+      UI_FIXES_MANIFEST_SHA256: b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295
+      CURRENT_FOLLOW_UP_MANIFEST_SHA256: 9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137
+      IOS_CASE_RUNNER_SHA256: 5506d012636f3bd0b5726503ab0bc1271d9462659997fd2cb9573929ac68fc3b
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply exact current source
+        run: |
+          set -euo pipefail
+          python3 -c "import hashlib,os,pathlib; p=pathlib.Path('../harness/mobile-current-manifest.json'); assert hashlib.sha256(p.read_bytes()).hexdigest()==os.environ['MOBILE_SOURCE_MANIFEST_SHA256'], 'Current source manifest mismatch'"
+          python3 ../harness/apply-current.py .
+          python3 - <<'PY'
+          import hashlib,os,pathlib
+          for variable,name in [('IOS_HARNESS_FIX_MANIFEST_SHA256','ios-harness-fix.json'),('UI_FIXES_MANIFEST_SHA256','ui-fixes.json'),('IOS_CASE_RUNNER_SHA256','run-ios-cases.py'),('CURRENT_FOLLOW_UP_MANIFEST_SHA256','current-follow-up.json')]:
+              assert hashlib.sha256((pathlib.Path('../harness')/name).read_bytes()).hexdigest()==os.environ[variable], name
+          PY
+          python3 ../harness/apply-harness-fix.py .
+          python3 ../harness/apply-ui-fixes.py . --runtime-only
+          python3 ../harness/apply-current-follow-up.py . --runtime-only
+          mkdir -p build/release-evidence
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          sha=lambda path:hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+          harness=json.loads(pathlib.Path('qa-evidence/harness-fix-verification.json').read_text())
+          ui=json.loads(pathlib.Path('qa-evidence/ui-fixes-verification.json').read_text())
+          metadata=json.loads(pathlib.Path('../harness/ios-harness-fix.json').read_text())
+          follow=json.loads(pathlib.Path('qa-evidence/current-follow-up-verification.json').read_text())
+          assert harness['mode']=='applied' and harness['testMethodCount']==13
+          assert harness['baseManifestSha256']==ui['baseManifestSha256']==os.environ['MOBILE_SOURCE_MANIFEST_SHA256']
+          assert harness['harnessFixManifestSha256']==os.environ['IOS_HARNESS_FIX_MANIFEST_SHA256']
+          assert harness['harnessSha256']==sha(metadata['path'])==os.environ['IOS_HARNESS_SHA256']
+          methods=re.findall(r'^    func (test\w+)\(\)',pathlib.Path(metadata['path']).read_text(),re.M)
+          assert methods==metadata['testMethods'] and len(methods)==13
+          assert ui['mode']=='runtime-only' and ui['runtimeCssOnly'] is True and ui['fileCount']==1
+          assert ui['manifestSha256']==os.environ['UI_FIXES_MANIFEST_SHA256']
+          assert ui['selectedPaths']==['src/lib/components/practice/le-phat/LePhatScreen.svelte']
+          assert len(ui['files'])==1 and sha(ui['files'][0]['path'])==ui['files'][0]['sha256']
+          assert follow['status']=='EXACT_CURRENT_FOLLOW_UP_VERIFIED' and follow['mode']=='runtime-only' and follow['priorUiMode']=='runtime-only'
+          assert follow['fileCount']==9 and follow['archiveFileCount']==24 and len(follow['files'])==9
+          assert follow['manifestSha256']==os.environ['CURRENT_FOLLOW_UP_MANIFEST_SHA256']
+          assert follow['baseManifestSha256']==harness['baseManifestSha256'] and follow['uiFixManifestSha256']==ui['manifestSha256']
+          assert follow['selectedPaths']==[item['path'] for item in follow['files']]
+          assert all(sha(item['path'])==item['sha256'] for item in follow['files'])
+          proof={'baseManifestSha256':harness['baseManifestSha256'],
+                 'harnessFixManifestSha256':harness['harnessFixManifestSha256'],
+                 'harnessSha256':harness['harnessSha256'],'harnessFixScopeVerified':True,'testMethodCount':13,
+                 'uiFixesManifestSha256':ui['manifestSha256'],'uiFixesArchiveSha256':ui['archiveSha256'],
+                 'runtimeCssOnly':True,'selectedUiFiles':ui['files'],
+                 'currentFollowUpManifestSha256':follow['manifestSha256'],
+                 'currentFollowUpArchiveSha256':follow['archiveSha256'],'currentRuntimeFiles':follow['files'],
+                 'simulatorReadinessPolicy':{'command':'xcrun simctl listapps','timeoutSeconds':120,
+                   'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750},
+                 'caseRunnerSha256':sha('../harness/run-ios-cases.py')}
+          pathlib.Path('qa-evidence/source-overlays-proof.json').write_text(json.dumps(proof,indent=2)+'\n')
+          PY
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Build iOS web assets and native dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build:mobile -- --platform ios
+          mkdir -p build/release-evidence
+          cp qa-evidence/source-overlays-proof.json build/release-evidence/source-overlays-proof.json
+          xcodebuild -version | tee build/release-evidence/xcode-version.txt
+      - name: Verify production host isolation
+        run: python3 ../harness/ios-isolate.py enable
+      - name: Select an existing matching iPhone destination without booting
+        run: |
+          set -euo pipefail
+          test "$TUTAM_QA_HOSTS_ISOLATED" = 1
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,re,sys; d=json.load(sys.stdin)["devices"]; v=re.escape(os.environ["IOS_RUNTIME"].replace(".","-")); matches=[x for k in sorted(d) if re.search(r"\.iOS-"+v+r"(?:-|$)",k) for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]]; assert matches,"No existing simulator for requested runtime"; print(matches[0]["udid"])')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+      - name: Build app plugins and all UI tests once
+        run: |
+          set -euo pipefail
+          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+            -derivedDataPath build/ios-simulator CODE_SIGNING_ALLOWED=NO build-for-testing \
+            > build/release-evidence/build-for-testing.log 2>&1
+      - name: Package complete Products with executable permissions
+        run: |
+          set -euo pipefail
+          products=build/ios-simulator/Build/Products
+          test -d "$products/Debug-iphonesimulator/App.app"
+          test -d "$products/Debug-iphonesimulator/AppUITests-Runner.app"
+          test "$(find "$products" -maxdepth 1 -name '*.xctestrun' | wc -l | tr -d ' ')" = 1
+          mkdir -p build/shared-products
+          tar -czf build/shared-products/UITestProducts.tar.gz -C build/ios-simulator/Build Products
+          cp ../harness/mobile-current-manifest.json build/shared-products/source-manifest.json
+          cp build/release-evidence/source-overlays-proof.json build/shared-products/source-overlays-proof.json
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path('build/shared-products')
+          archive=root/'UITestProducts.tar.gz'
+          metadata={'ios':os.environ['IOS_RUNTIME'],'manifestSha256':os.environ['MOBILE_SOURCE_MANIFEST_SHA256'],
+                    'archiveSha256':hashlib.sha256(archive.read_bytes()).hexdigest(),
+                    'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT']}
+          proofPath=root/'source-overlays-proof.json'
+          proof=json.loads(proofPath.read_text())
+          assert hashlib.sha256(pathlib.Path('ios/App/AppUITests/NativeGuestSmokeTests.swift').read_bytes()).hexdigest()==os.environ['IOS_HARNESS_SHA256']
+          for item in proof['selectedUiFiles']+proof['currentRuntimeFiles']:
+              assert hashlib.sha256(pathlib.Path(item['path']).read_bytes()).hexdigest()==item['sha256']
+          metadata.update({key:proof[key] for key in ('harnessFixManifestSha256','harnessSha256','uiFixesManifestSha256','uiFixesArchiveSha256','caseRunnerSha256','selectedUiFiles','currentFollowUpManifestSha256','currentFollowUpArchiveSha256','currentRuntimeFiles')})
+          metadata['sourceOverlaysProofSha256']=hashlib.sha256(proofPath.read_bytes()).hexdigest()
+          (root/'products-metadata.json').write_text(json.dumps(metadata,indent=2))
+          PY
+      - name: Upload reusable Products for this OS
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-focused-products-${{ matrix.platform.ios }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/shared-products/
+          retention-days: 3
+          if-no-files-found: error
+      - name: Stop simulator before restoring resolution
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            state=$(xcrun simctl list devices -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; print(next(x["state"] for v in d.values() for x in v if x["udid"]==os.environ["TUTAM_QA_SIMULATOR"]))')
+            if [[ "$state" != Shutdown ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR"; fi
+          fi
+          python3 ../harness/ios-isolate.py restore
+      - name: Upload build evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-focused-build-evidence-${{ matrix.platform.ios }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/release-evidence/
+          if-no-files-found: warn
+
+  ios-cases:
+    name: iOS ${{ matrix.platform.ios }} ${{ matrix.group }}
+    needs: ios-build
+    if: ${{ always() && !cancelled() }}
+    runs-on: ${{ matrix.platform.runner }}
+    # Focused groups contain one or two cases; each retains its 750s watchdog.
+    timeout-minutes: 85
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        group: [smoke, personal, snapshot]
+        platform:
+          - ios: '18.5'
+            runner: macos-15
+            xcode: /Applications/Xcode_26.3.app/Contents/Developer
+          - ios: '27.0'
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.1.app/Contents/Developer
+    env:
+      DEVELOPER_DIR: ${{ matrix.platform.xcode }}
+      IOS_RUNTIME: ${{ matrix.platform.ios }}
+      MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+      IOS_HARNESS_FIX_MANIFEST_SHA256: b4d4cf5de74ed218b33266ab56f3e015965d0d453aebd3d58e8a9e2c3172a8cb
+      IOS_HARNESS_SHA256: 2da6684d4d67518118217eea11dbe2129f755f41af8b655e66a3633fe66a68cc
+      UI_FIXES_MANIFEST_SHA256: b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295
+      CURRENT_FOLLOW_UP_MANIFEST_SHA256: 9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137
+      IOS_CASE_RUNNER_SHA256: 5506d012636f3bd0b5726503ab0bc1271d9462659997fd2cb9573929ac68fc3b
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply exact current source
+        run: |
+          set -euo pipefail
+          python3 -c "import hashlib,os,pathlib; p=pathlib.Path('../harness/mobile-current-manifest.json'); assert hashlib.sha256(p.read_bytes()).hexdigest()==os.environ['MOBILE_SOURCE_MANIFEST_SHA256'], 'Current source manifest mismatch'"
+          python3 ../harness/apply-current.py .
+          python3 - <<'PY'
+          import hashlib,os,pathlib
+          for variable,name in [('IOS_HARNESS_FIX_MANIFEST_SHA256','ios-harness-fix.json'),('UI_FIXES_MANIFEST_SHA256','ui-fixes.json'),('IOS_CASE_RUNNER_SHA256','run-ios-cases.py'),('CURRENT_FOLLOW_UP_MANIFEST_SHA256','current-follow-up.json')]:
+              assert hashlib.sha256((pathlib.Path('../harness')/name).read_bytes()).hexdigest()==os.environ[variable], name
+          PY
+          python3 ../harness/apply-harness-fix.py .
+          python3 ../harness/apply-ui-fixes.py . --runtime-only
+          python3 ../harness/apply-current-follow-up.py . --runtime-only
+          mkdir -p build/release-evidence
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          sha=lambda path:hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+          harness=json.loads(pathlib.Path('qa-evidence/harness-fix-verification.json').read_text())
+          ui=json.loads(pathlib.Path('qa-evidence/ui-fixes-verification.json').read_text())
+          metadata=json.loads(pathlib.Path('../harness/ios-harness-fix.json').read_text())
+          follow=json.loads(pathlib.Path('qa-evidence/current-follow-up-verification.json').read_text())
+          assert harness['mode']=='applied' and harness['testMethodCount']==13
+          assert harness['baseManifestSha256']==ui['baseManifestSha256']==os.environ['MOBILE_SOURCE_MANIFEST_SHA256']
+          assert harness['harnessFixManifestSha256']==os.environ['IOS_HARNESS_FIX_MANIFEST_SHA256']
+          assert harness['harnessSha256']==sha(metadata['path'])==os.environ['IOS_HARNESS_SHA256']
+          methods=re.findall(r'^    func (test\w+)\(\)',pathlib.Path(metadata['path']).read_text(),re.M)
+          assert methods==metadata['testMethods'] and len(methods)==13
+          assert ui['mode']=='runtime-only' and ui['runtimeCssOnly'] is True and ui['fileCount']==1
+          assert ui['manifestSha256']==os.environ['UI_FIXES_MANIFEST_SHA256']
+          assert ui['selectedPaths']==['src/lib/components/practice/le-phat/LePhatScreen.svelte']
+          assert len(ui['files'])==1 and sha(ui['files'][0]['path'])==ui['files'][0]['sha256']
+          assert follow['status']=='EXACT_CURRENT_FOLLOW_UP_VERIFIED' and follow['mode']=='runtime-only' and follow['priorUiMode']=='runtime-only'
+          assert follow['fileCount']==9 and follow['archiveFileCount']==24 and len(follow['files'])==9
+          assert follow['manifestSha256']==os.environ['CURRENT_FOLLOW_UP_MANIFEST_SHA256']
+          assert follow['baseManifestSha256']==harness['baseManifestSha256'] and follow['uiFixManifestSha256']==ui['manifestSha256']
+          assert follow['selectedPaths']==[item['path'] for item in follow['files']]
+          assert all(sha(item['path'])==item['sha256'] for item in follow['files'])
+          proof={'baseManifestSha256':harness['baseManifestSha256'],
+                 'harnessFixManifestSha256':harness['harnessFixManifestSha256'],
+                 'harnessSha256':harness['harnessSha256'],'harnessFixScopeVerified':True,'testMethodCount':13,
+                 'uiFixesManifestSha256':ui['manifestSha256'],'uiFixesArchiveSha256':ui['archiveSha256'],
+                 'runtimeCssOnly':True,'selectedUiFiles':ui['files'],
+                 'currentFollowUpManifestSha256':follow['manifestSha256'],
+                 'currentFollowUpArchiveSha256':follow['archiveSha256'],'currentRuntimeFiles':follow['files'],
+                 'simulatorReadinessPolicy':{'command':'xcrun simctl listapps','timeoutSeconds':120,
+                   'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750},
+                 'caseRunnerSha256':sha('../harness/run-ios-cases.py')}
+          pathlib.Path('qa-evidence/source-overlays-proof.json').write_text(json.dumps(proof,indent=2)+'\n')
+          PY
+      - name: Restore verified source proof for this test job
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          cp qa-evidence/source-overlays-proof.json build/release-evidence/source-overlays-proof.json
+      - name: Download matching app runner and xctestrun
+        uses: actions/download-artifact@v6
+        with:
+          name: ios-focused-products-${{ matrix.platform.ios }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-prebuilt
+      - name: Verify matching Products and restore full tree
+        run: |
+          set -euo pipefail
+          cmp ../harness/mobile-current-manifest.json ../ios-prebuilt/source-manifest.json
+          cmp build/release-evidence/source-overlays-proof.json ../ios-prebuilt/source-overlays-proof.json
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path('../ios-prebuilt')
+          metadata=json.loads((root/'products-metadata.json').read_text())
+          assert metadata['manifestSha256']==os.environ['MOBILE_SOURCE_MANIFEST_SHA256']
+          assert metadata['harnessFixManifestSha256']==os.environ['IOS_HARNESS_FIX_MANIFEST_SHA256']
+          assert metadata['harnessSha256']==os.environ['IOS_HARNESS_SHA256']
+          assert metadata['uiFixesManifestSha256']==os.environ['UI_FIXES_MANIFEST_SHA256']
+          assert metadata['caseRunnerSha256']==os.environ['IOS_CASE_RUNNER_SHA256']
+          assert metadata['currentFollowUpManifestSha256']==os.environ['CURRENT_FOLLOW_UP_MANIFEST_SHA256']
+          proof=json.loads((root/'source-overlays-proof.json').read_text())
+          assert hashlib.sha256((root/'source-overlays-proof.json').read_bytes()).hexdigest()==metadata['sourceOverlaysProofSha256']
+          assert metadata['selectedUiFiles']==proof['selectedUiFiles']
+          assert metadata['uiFixesArchiveSha256']==proof['uiFixesArchiveSha256']
+          assert metadata['currentFollowUpArchiveSha256']==proof['currentFollowUpArchiveSha256']
+          assert metadata['currentRuntimeFiles']==proof['currentRuntimeFiles']
+          assert metadata['ios']==os.environ['IOS_RUNTIME']
+          assert metadata['workflowRunId']==os.environ['GITHUB_RUN_ID']
+          assert metadata['workflowRunAttempt']==os.environ['GITHUB_RUN_ATTEMPT']
+          assert hashlib.sha256((root/'UITestProducts.tar.gz').read_bytes()).hexdigest()==metadata['archiveSha256']
+          PY
+          mkdir -p build/ios-simulator/Build
+          tar -xzf ../ios-prebuilt/UITestProducts.tar.gz -C build/ios-simulator/Build
+      - name: Verify production host isolation
+        run: python3 ../harness/ios-isolate.py enable
+      - name: Select and boot an existing matching iPhone
+        run: |
+          set -euo pipefail
+          test "$TUTAM_QA_HOSTS_ISOLATED" = 1
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,re,sys; d=json.load(sys.stdin)["devices"]; v=re.escape(os.environ["IOS_RUNTIME"].replace(".","-")); matches=[x for k in sorted(d) if re.search(r"\.iOS-"+v+r"(?:-|$)",k) for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]]; assert matches,"No existing simulator for requested runtime"; print(matches[0]["udid"])')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          if ! xcrun simctl list devices booted | grep -Fq "$device"; then xcrun simctl boot "$device"; fi
+          xcrun simctl bootstatus "$device" -b
+          TUTAM_QA_READINESS_DEVICE="$device" python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          qa=pathlib.Path('qa-evidence');qa.mkdir(parents=True,exist_ok=True)
+          evidence=pathlib.Path('build/release-evidence');evidence.mkdir(parents=True,exist_ok=True)
+          device=os.environ['TUTAM_QA_READINESS_DEVICE']
+          records=[]
+          def capture(command,name,timeout=30):
+              try:
+                  result=subprocess.run(command,timeout=timeout,check=True,capture_output=True,text=True,errors='replace')
+                  stdout,stderr=result.stdout,result.stderr;ok=True;error=None
+              except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as failure:
+                  stdout,stderr=failure.stdout or '',failure.stderr or '';ok=False;error=str(failure)
+              if isinstance(stdout,bytes):stdout=stdout.decode(errors='replace')
+              if isinstance(stderr,bytes):stderr=stderr.decode(errors='replace')
+              text='COMMAND: '+' '.join(command)+'\nSTDOUT:\n'+stdout+'\nSTDERR:\n'+stderr+'\n'
+              if error:text+='ERROR: '+error+'\n'
+              (qa/name).write_text(text)
+              (evidence/name).write_text(text)
+              records.append({'command':command,'passed':ok,'timeoutSeconds':timeout,'output':name,'error':error})
+              return ok
+          supported=capture(['xcrun','simctl','help','listapps'],'simulator-listapps-help.txt')
+          # Help is diagnostic only. The actual installation-service query always runs once.
+          ready=capture(['xcrun','simctl','listapps',device],'simulator-app-services-ready.txt',120)
+          capture(['xcrun','simctl','list','devices','booted','-j'],'simulator-booted-devices.txt')
+          capture(['xcrun','simctl','list','runtimes','-j'],'simulator-installed-runtimes.txt')
+          capture(['sw_vers'],'simulator-host-os.txt')
+          capture(['xcodebuild','-version'],'simulator-xcode-version.txt')
+          result={'ready':ready,'ios':os.environ['IOS_RUNTIME'],'device':device,'records':records,
+                  'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750}
+          for directory in (qa,evidence):(directory/'simulator-readiness.json').write_text(json.dumps(result,indent=2)+'\n')
+          assert ready,'Simulator app installation services were not ready before native execution'
+          PY
+      - name: Run exact native group on fresh per-case installs
+        run: |
+          python3 - <<'PY'
+          import importlib.util,os,sys
+          spec=importlib.util.spec_from_file_location('focused_native_cases','../harness/run-ios-cases.py')
+          cases=importlib.util.module_from_spec(spec);spec.loader.exec_module(cases)
+          original={identifier for identifiers in cases.GROUPS.values() for identifier in identifiers}
+          focused={'smoke': ['NativeGuestSmokeTests/testRosaryBackPreservesCountInPortraitAndLandscape'], 'personal': ['NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence'], 'snapshot': ['NativeSimulatorSnapshotTests/testRosaryManualAndAutomaticAudioProgress', 'NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']}
+          assert sum(map(len,focused.values()))==4 and {identifier for identifiers in focused.values() for identifier in identifiers}.issubset(original)
+          cases.GROUPS=focused
+          sys.argv=['run-ios-cases.py','--group','${{ matrix.group }}']
+          raise SystemExit(cases.main())
+          PY
+      - name: Export readable evidence and enforce exact counts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import importlib.util,os,sys
+          spec=importlib.util.spec_from_file_location('focused_native_cases','../harness/run-ios-cases.py')
+          cases=importlib.util.module_from_spec(spec);spec.loader.exec_module(cases)
+          original={identifier for identifiers in cases.GROUPS.values() for identifier in identifiers}
+          focused={'smoke': ['NativeGuestSmokeTests/testRosaryBackPreservesCountInPortraitAndLandscape'], 'personal': ['NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence'], 'snapshot': ['NativeSimulatorSnapshotTests/testRosaryManualAndAutomaticAudioProgress', 'NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']}
+          assert sum(map(len,focused.values()))==4 and {identifier for identifiers in focused.values() for identifier in identifiers}.issubset(original)
+          cases.GROUPS=focused
+          sys.argv=['run-ios-cases.py','--group','${{ matrix.group }}']+['--collect-only']
+          raise SystemExit(cases.main())
+          PY
+      - name: Stop simulator before restoring resolution
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            state=$(xcrun simctl list devices -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; print(next(x["state"] for v in d.values() for x in v if x["udid"]==os.environ["TUTAM_QA_SIMULATOR"]))')
+            if [[ "$state" != Shutdown ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR"; fi
+          fi
+          python3 ../harness/ios-isolate.py restore
+      - name: Upload readable native evidence and raw results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-focused-evidence-${{ matrix.platform.ios }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/release-evidence/
+          retention-days: 7
+          if-no-files-found: error
+
+  ios-gate:
+    name: Require all 8 focused iOS executions - no claim of full-suite completion
+    needs: [ios-build, ios-cases]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+      IOS_HARNESS_FIX_MANIFEST_SHA256: b4d4cf5de74ed218b33266ab56f3e015965d0d453aebd3d58e8a9e2c3172a8cb
+      IOS_HARNESS_SHA256: 2da6684d4d67518118217eea11dbe2129f755f41af8b655e66a3633fe66a68cc
+      UI_FIXES_MANIFEST_SHA256: b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295
+      CURRENT_FOLLOW_UP_MANIFEST_SHA256: 9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137
+      IOS_CASE_RUNNER_SHA256: 5506d012636f3bd0b5726503ab0bc1271d9462659997fd2cb9573929ac68fc3b
+      IOS_BUILD_RESULT: ${{ needs.ios-build.result }}
+      IOS_CASES_RESULT: ${{ needs.ios-cases.result }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: ios-focused-evidence-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-native-evidence
+      - name: Require every case once on both iOS versions
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,runpy
+          sha=lambda path:hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+          assert sha('harness/ios-harness-fix.json')==os.environ['IOS_HARNESS_FIX_MANIFEST_SHA256']
+          assert sha('harness/NativeGuestSmokeTests.swift')==os.environ['IOS_HARNESS_SHA256']
+          assert sha('harness/ui-fixes.json')==os.environ['UI_FIXES_MANIFEST_SHA256']
+          assert sha('harness/run-ios-cases.py')==os.environ['IOS_CASE_RUNNER_SHA256']
+          assert sha('harness/current-follow-up.json')==os.environ['CURRENT_FOLLOW_UP_MANIFEST_SHA256']
+          follow=json.loads(pathlib.Path('harness/current-follow-up.json').read_text())
+          currentRuntimeFiles=[item for item in follow['files'] if item['path'] in follow['runtimePaths']]
+          assert len(currentRuntimeFiles)==9 and follow['fileCount']==24
+          ui=json.loads(pathlib.Path('harness/ui-fixes.json').read_text())
+          runtimeFiles=[item for item in ui['files'] if item['path'] in ui['runtimePaths']]
+          assert len(runtimeFiles)==1 and ui['runtimePaths']==['src/lib/components/practice/le-phat/LePhatScreen.svelte']
+          assert os.environ['IOS_BUILD_RESULT']=='success', 'iOS build matrix did not succeed'
+          assert os.environ['IOS_CASES_RESULT']=='success', 'iOS test matrix or cleanup did not succeed'
+          original=runpy.run_path('harness/run-ios-cases.py')['GROUPS']
+          groups={'smoke': ['NativeGuestSmokeTests/testRosaryBackPreservesCountInPortraitAndLandscape'], 'personal': ['NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence'], 'snapshot': ['NativeSimulatorSnapshotTests/testRosaryManualAndAutomaticAudioProgress', 'NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']}
+          assert {identifier for identifiers in groups.values() for identifier in identifiers}.issubset({identifier for identifiers in original.values() for identifier in identifiers})
+          expected={(ios,group) for ios in ('18.5','27.0') for group in groups}
+          summaries=list(pathlib.Path('ios-native-evidence').rglob('native-ui-summary.json'))
+          assert len(summaries)==6, f'Expected6focused group summaries, got{len(summaries)}'
+          seen=set()
+          total=0
+          for path in summaries:
+              data=json.loads(path.read_text())
+              key=(data['ios'],data['group'])
+              assert key in expected and key not in seen, key
+              assert data['sourceManifestSha256']==os.environ['MOBILE_SOURCE_MANIFEST_SHA256']
+              proof=json.loads((path.parent/'source-overlays-proof.json').read_text())
+              assert proof['baseManifestSha256']==os.environ['MOBILE_SOURCE_MANIFEST_SHA256']
+              assert proof['harnessFixManifestSha256']==os.environ['IOS_HARNESS_FIX_MANIFEST_SHA256']
+              assert proof['harnessSha256']==os.environ['IOS_HARNESS_SHA256']
+              assert proof['uiFixesManifestSha256']==os.environ['UI_FIXES_MANIFEST_SHA256']
+              assert proof['uiFixesArchiveSha256']==ui['archiveSha256']
+              assert proof['caseRunnerSha256']==os.environ['IOS_CASE_RUNNER_SHA256']
+              assert proof['runtimeCssOnly'] is True and proof['harnessFixScopeVerified'] is True and proof['testMethodCount']==13
+              assert proof['selectedUiFiles']==runtimeFiles
+              assert proof['currentFollowUpManifestSha256']==os.environ['CURRENT_FOLLOW_UP_MANIFEST_SHA256']
+              assert proof['currentFollowUpArchiveSha256']==follow['archiveSha256']
+              assert proof['currentRuntimeFiles']==currentRuntimeFiles
+              assert proof['simulatorReadinessPolicy']=={'command':'xcrun simctl listapps','timeoutSeconds':120,'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750}
+              readiness=json.loads((path.parent/'simulator-readiness.json').read_text())
+              assert readiness['ready'] is True and readiness['ios']==data['ios'] and readiness['nativeAssertionsChanged'] is False
+              assert data['workflowRunId']==os.environ['GITHUB_RUN_ID']
+              assert data['workflowRunAttempt']==os.environ['GITHUB_RUN_ATTEMPT']
+              assert data['completeAndPassed'] is True, data
+              identifiers=[record['identifier'] for record in data['records']]
+              assert identifiers==groups[data['group']], identifiers
+              count=len(identifiers)
+              assert data['passedTests']==data['totalTestCount']==data['expectedTests']==count
+              assert data['failedTests']==data['skippedTests']==0
+              seen.add(key)
+              total+=count
+          assert seen==expected and total==8, (seen,total)
+          pathlib.Path('ios-native-evidence/focused-ios-gate.json').write_text(json.dumps(
+              {'passedTests':total,'failedTests':0,'skippedTests':0,'groups':6,'scope':'FOCUSED_HARNESS_FOLLOW_UP_8','claimsOriginalFullSuitePassed':False,
+               'sourceManifestSha256':os.environ['MOBILE_SOURCE_MANIFEST_SHA256'],
+               'harnessFixManifestSha256':os.environ['IOS_HARNESS_FIX_MANIFEST_SHA256'],
+               'harnessSha256':os.environ['IOS_HARNESS_SHA256'],
+               'uiFixesManifestSha256':os.environ['UI_FIXES_MANIFEST_SHA256'],
+               'runtimeFiles':runtimeFiles,'caseRunnerSha256':os.environ['IOS_CASE_RUNNER_SHA256'],
+               'currentFollowUpManifestSha256':os.environ['CURRENT_FOLLOW_UP_MANIFEST_SHA256'],
+               'currentFollowUpArchiveSha256':follow['archiveSha256'],'currentRuntimeFiles':currentRuntimeFiles},indent=2))
+          print('Verified8focused native iOS executions,0failures,0skips; original full26 gate remains separate')
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ios-focused-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-native-evidence/focused-ios-gate.json
+          if-no-files-found: warn
