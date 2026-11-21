@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      ANDROID_BUILD_RUN_ID: '44896807996'
+      ANDROID_BUILD_RUN_ID: '44902132030'
       MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
       ANDROID_SERIAL: emulator-5554
       QA_PACKAGE: vn.quangtu.tutam.securityqa
@@ -42,12 +42,15 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           echo "$MOBILE_SOURCE_MANIFEST_SHA256  ../harness/mobile-current-manifest.json" | sha256sum -c -
           python3 ../harness/apply-current.py .
+          python3 ../harness/apply-android-test-fix.py .
+          python3 ../harness/apply-ui-fixes.py . --runtime-only
+          python3 ../harness/apply-current-follow-up.py . --runtime-only
           mkdir -p build/android-device-evidence
       - name: Download APKs from the exact source build run
         uses: actions/download-artifact@v6
         with:
-          name: android-qa-packages-44896807996
-          run-id: 44896807996
+          name: android-qa-packages-44902132030
+          run-id: 44902132030
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           path: android-prebuilt
@@ -62,6 +65,9 @@ jobs:
           assert data['manifestSha256']==os.environ['MOBILE_SOURCE_MANIFEST_SHA256']
           assert str(data['runId'])==os.environ['ANDROID_BUILD_RUN_ID']
           assert data['package']==os.environ['QA_PACKAGE']=='vn.quangtu.tutam.securityqa'
+          assert data['androidHarnessSha256']=='cc4793ef30879588221df90ace51a50457772617d4eccb59c1e4878083b476b1'
+          assert data['uiFixes']==json.loads(pathlib.Path('qa-evidence/ui-fixes-verification.json').read_text())
+          assert data['currentFollowUp']==json.loads(pathlib.Path('qa-evidence/current-follow-up-verification.json').read_text())
           expected={'app-debug.apk','app-debug-androidTest.apk'}
           assert set(data['files'])==expected
           paths={}
