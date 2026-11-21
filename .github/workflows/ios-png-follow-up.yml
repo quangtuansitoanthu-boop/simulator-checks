@@ -45,16 +45,17 @@ jobs:
           persist-credentials: false
       - name: Apply checksummed current local source
         run: python3 ../harness/verify-apply.py --app-repo . --transfer-dir ../harness
-      - name: Apply verified PNG destination test follow-up
+      - name: Apply verified PNG lifecycle and focus fixes
         run: |
           python3 - <<'PY'
           import hashlib,pathlib,subprocess
-          patch=pathlib.Path('../harness/ios-png-harness.patch')
-          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='56642bdc369007576b6059c69ae2bfa9b85cdd3200717954b6dc8084a71315d1'
-          subprocess.run(['git','apply','--check',str(patch)],check=True)
-          subprocess.run(['git','apply',str(patch)],check=True)
-          target=pathlib.Path('ios/App/AppUITests/NativeGuestSmokeTests.swift')
-          assert hashlib.sha256(target.read_bytes()).hexdigest()=='dbb9806474038187dc5d131935c4d7a5594ba72b570969f89228d6f3fc8848b4'
+          patch=pathlib.Path('../harness/ios-png-final.patch')
+          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='3ad5e90c0f47f2ac9954345519f6d6a293e0ba4f8f8ab02df312792c563d203f'
+          subprocess.run(['git','-c','core.autocrlf=false','apply','--check',str(patch)],check=True)
+          subprocess.run(['git','-c','core.autocrlf=false','apply',str(patch)],check=True)
+          expected={'ios/App/App/TuTapBridgeViewController.swift': '7a2a0416bd7255724aa3d85072047edb4b565c5937ad0a2b334db3f32a000e2c', 'ios/App/AppUITests/NativeGuestSmokeTests.swift': '9176cce36f63dcda2c58ab2db506ec6ac27e4fb008346090247f53450eb802c9', 'src/lib/components/home/DailyDhammapadaCard.svelte': '11ce404f607c0aa51a582cc12b580e60aa9448a1cdf3d3e7a7c02bcf301fdc63', 'src/lib/components/reader/QuoteCardModal.svelte': '0caf5aac58c55401b54a5693a6eba9560943a7866e7a14c4a27ec4516ed3d05d'}
+          for file,digest in expected.items():
+              assert hashlib.sha256(pathlib.Path(file).read_bytes()).hexdigest()==digest,file
           PY
       - uses: actions/setup-node@v6
         with:
