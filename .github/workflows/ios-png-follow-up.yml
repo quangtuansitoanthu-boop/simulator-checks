@@ -8,7 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: png-follow-up-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   native:
     strategy:
@@ -233,6 +233,26 @@ jobs:
             app/build/readable-evidence/**/*.jpeg
             app/build/readable-evidence/**/*.txt
             app/build/readable-evidence/**/*.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Package verified-source simulator app for web QA
+        if: always()
+        run: |
+          set -euo pipefail
+          app=build/ios-simulator/Build/Products/Debug-iphonesimulator/App.app
+          test -d "$app"
+          mkdir -p build/simulator-app
+          (cd "$(dirname "$app")" && zip -qr "$GITHUB_WORKSPACE/app/build/simulator-app/App.app.zip" App.app)
+          shasum -a 256 build/simulator-app/App.app.zip > build/simulator-app/App-build-info.txt
+          file "$app/App" >> build/simulator-app/App-build-info.txt
+          xcrun lipo -archs "$app/App" >> build/simulator-app/App-build-info.txt
+          plutil -extract DTPlatformName raw "$app/Info.plist" >> build/simulator-app/App-build-info.txt
+      - name: Upload simulator app for web QA
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: png-follow-up-app-${{ matrix.ios }}-${{ github.run_number }}
+          path: app/build/simulator-app/
           retention-days: 7
           if-no-files-found: error
       - name: Shut down simulator and restore runner network
