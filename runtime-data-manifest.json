@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
+  "baselineCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
+  "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
+  "owner": {
+    "path": "src/jobs/vegan-week.ts",
+    "sha256": "efcba30b69fb20a41718d113043c708d85b392bce1bedafae6f2baa502734d53"
+  },
+  "archive": "runtime-data.tar.gz",
+  "archiveSha256": "78675468caf43198b4eebdb423097eb69c3ec1fa7ed93bf61c727112d19d1b95",
+  "archiveBytes": 173300,
+  "fileCount": 7,
+  "totalBytes": 985867,
+  "files": [
+    {
+      "path": "docs/plans/vegan-sources/recipes-reviewed.json",
+      "bytes": 311066,
+      "sha256": "76938c5e1080ae580f4f4dca54e05c0a9081bfb405a8ac3f7a8c9c6b68358f08",
+      "baselineBlobSha1": null
+    },
+    {
+      "path": "docs/plans/vegan-sources/recipes-extra.json",
+      "bytes": 137421,
+      "sha256": "f4e13984fe228a8bbea9e07acccb2ea3ee5ceb04345d5ce12217e1c8ba283f4a",
+      "baselineBlobSha1": null
+    },
+    {
+      "path": "docs/plans/vegan-sources/recipes-metric.json",
+      "bytes": 438109,
+      "sha256": "6a5a94dc33cde2449c9886e961b0b1a8f33c70389bafcba0af92282b0130a164",
+      "baselineBlobSha1": null
+    },
+    {
+      "path": "docs/plans/vegan-sources/recipes-rotation.json",
+      "bytes": 72923,
+      "sha256": "408d03b4e7a886a99dc726b295b01cf3553b12d34b744255fbb0d741a9c8f61e",
+      "baselineBlobSha1": null
+    },
+    {
+      "path": "docs/plans/vegan-sources/regions-existing.json",
+      "bytes": 25344,
+      "sha256": "f1b9c5b152606efaf583e5b520f1c975aa2e0162d9197770382bbd775c5dd5fb",
+      "baselineBlobSha1": null
+    },
+    {
+      "path": "docs/plans/vegan-sources/schedule-2026-11-09.json",
+      "bytes": 501,
+      "sha256": "cb6b1df6e4d81086a31b6f2cb9c58402b7037a66b29d694afd38042402c07b50",
+      "baselineBlobSha1": null
+    },
+    {
+      "path": "docs/plans/vegan-sources/schedule-2026-11-16.json",
+      "bytes": 503,
+      "sha256": "2a96ed05607b27c51f8a48e99bde1d0b66088aa777dd2f998ea6d8d61d1c76e6",
+      "baselineBlobSha1": null
+    }
+  ],
+  "sensitiveFindings": [],
+  "scope": "Exact seven direct JSON imports of src/jobs/vegan-week.ts; no other docs or private fixtures"
+}
