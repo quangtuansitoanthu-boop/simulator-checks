@@ -1,0 +1,23 @@
+{
+  "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
+  "scope": "Two Android instrumentation test files only; match fixture locale to production owner",
+  "expectedInstrumentationMethods": 57,
+  "archive": "android-test-fix.tar.gz",
+  "archiveSha256": "1f8302c77ab4fdad7db007018da72e14969e9dffdbf6ca3e40aeae559cc0f3e2",
+  "files": [
+    {
+      "path": "android/app/src/androidTest/java/vn/quangtu/tutam/audio/DharmaAudioWidgetInitialLayoutTest.java",
+      "baseGitBlobSha1": "12a536f69bb8158c4f69e1bf77d439734c3aeedf",
+      "sha256": "ef1d30e267ca191f86def692547ca9dc3e17ad5cd5203d45fc6dfb60866f6845",
+      "bytes": 7976,
+      "testMethods": 4
+    },
+    {
+      "path": "android/app/src/androidTest/java/vn/quangtu/tutam/widgets/CalendarWidgetRenderingTest.java",
+      "baseGitBlobSha1": "bc2607e0287a5d05f85fcc499206b7d51878ca03",
+      "sha256": "ff8654cf67f5c9ae6bff7e33e331242fa86e8841828c3b93a5a3e988341d84fc",
+      "bytes": 19240,
+      "testMethods": 9
+    }
+  ]
+}
