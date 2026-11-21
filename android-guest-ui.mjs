@@ -53,7 +53,8 @@ async function connect() {
   let lastError;
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
-      browser = await chromium.connectOverCDP('http://127.0.0.1:9222', { timeout: 5000 });
+      // WebView không có Browser.setDownloadBehavior; giữ cấu hình native hiện tại.
+      browser = await chromium.connectOverCDP('http://127.0.0.1:9222', { timeout: 5000, noDefaults: true });
       break;
     } catch (error) { lastError = error; await pause(500); }
   }

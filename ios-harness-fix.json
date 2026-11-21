@@ -1,0 +1,7 @@
+{
+  "path": "ios/App/AppUITests/NativeGuestSmokeTests.swift",
+  "baseSha256": "98669eca6c455ce7cc4db2b6fb2a8c4968eaad5e14bfe0998ccdfe6a603a3edd",
+  "sha256": "929c44ca1692211ccdda79ae9317a396484c77dea61b0b0b83d436546821b589",
+  "bytes": 86188,
+  "change": "Only vegetarian menu expected title updated to existing canonical UI label; all native assertions retained"
+}
