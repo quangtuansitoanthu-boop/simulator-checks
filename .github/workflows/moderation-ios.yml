@@ -31,6 +31,7 @@ env:
   IOS_ISOLATION_HELPER_SHA256: 73199616b69b41ba3a860907efe5545d516b41d248239697173e77009a27cd0b
   TUTAM_TEST_SUPPORT_MANIFEST_SHA256: 4075d004b03ea59c44337cb9296713fc22a6e21bfe9d2c2ebd90dd17d97a8e9c
   TEST_SUPPORT_HELPER_SHA256: fcbe767b43d3a5d9a1e85d37adac681b871618d48bde280da3e4e6c7f5b0d023
+  IOS_QA_GOOGLE_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
 jobs:
   ios-build:
     name: Build reviewed iOS ${{ matrix.platform.ios }} products once
@@ -177,10 +178,34 @@ jobs:
         run: |-
           set -euo pipefail
           npm ci --no-audit --no-fund
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          import crypto from 'node:crypto';
+          import { configureIosGoogle, resolveIosGoogleClientId } from './scripts/lib/ios-google-config.mjs';
+          const sha=data=>crypto.createHash('sha256').update(data).digest('hex');
+          const blob=data=>crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob '+data.length+'\0'),data])).digest('hex');
+          const path='ios/App/App/Info.plist',helper='scripts/lib/ios-google-config.mjs';
+          const proof=JSON.parse(fs.readFileSync('qa-evidence/source-overlays-proof.json','utf8'));
+          const expected=JSON.parse(fs.readFileSync('qa-evidence/moderation-brand-expected.json','utf8'));
+          const source=fs.readFileSync(path),helperBytes=fs.readFileSync(helper);
+          const entry=proof.currentSourceRuntimeFiles.find(item=>item.path===path);
+          assert.ok(entry);assert.equal(sha(source),entry.sha256);assert.equal(blob(helperBytes),expected[helper]);
+          const clientId=resolveIosGoogleClientId(process.env.VITE_GOOGLE_IOS_CLIENT_ID,true);
+          assert.equal(clientId,process.env.IOS_QA_GOOGLE_CLIENT_ID);
+          fs.writeFileSync('qa-evidence/ios-info.original.plist',source,{flag:'wx'});
+          fs.writeFileSync('qa-evidence/ios-info.expected.plist',source,{flag:'wx'});
+          configureIosGoogle('qa-evidence/ios-info.expected.plist',clientId);
+          const config={schemaVersion:1,path,transform:'configureIosGoogle',publicQaClientId:clientId,
+           sourceSha256:sha(source),expectedSha256:sha(fs.readFileSync('qa-evidence/ios-info.expected.plist')),
+           sourceHelperPath:helper,sourceHelperSha256:sha(helperBytes),sourceHelperGitBlobSha1:blob(helperBytes)};
+          fs.writeFileSync('qa-evidence/ios-info-build-config.json',JSON.stringify(config,null,2)+'\n',{flag:'wx'});
+          JS
           npm run build:mobile -- --platform ios
           mkdir -p build/release-evidence
           cp qa-evidence/*verification.json build/release-evidence/
           cp qa-evidence/source-overlays-proof.json qa-evidence/host-isolation.json build/release-evidence/
+          cp qa-evidence/ios-info.original.plist qa-evidence/ios-info.expected.plist qa-evidence/ios-info-build-config.json build/release-evidence/
           xcodebuild -version | tee build/release-evidence/xcode-version.txt
       - name: Select an existing matching iPhone destination without booting
         run: |
@@ -215,12 +240,36 @@ jobs:
           assert proof['currentSourceOverlayManifestSha256']==os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256']
           assert proof['currentSourceExpectedMapSha256']==sha(root/'current-source-expected.json')
           assert sha('ios/App/AppUITests/NativeGuestSmokeTests.swift')==proof['harnessSha256']==os.environ['IOS_HARNESS_SHA256']
-          for item in proof['currentSourceRuntimeFiles']+proof['nativeFixtureFiles']+proof['runtimeDataFiles']+proof['testSupportFiles']:assert sha(item['path'])==item['sha256'],item['path']
+          config_path=pathlib.Path('qa-evidence/ios-info-build-config.json');config=json.loads(config_path.read_bytes())
+          assert config['schemaVersion']==1 and config['path']=='ios/App/App/Info.plist' and config['transform']=='configureIosGoogle'
+          assert config['publicQaClientId']==os.environ['VITE_GOOGLE_IOS_CLIENT_ID']==os.environ['IOS_QA_GOOGLE_CLIENT_ID']
+          assert config['sourceHelperPath']=='scripts/lib/ios-google-config.mjs' and sha(config['sourceHelperPath'])==config['sourceHelperSha256']
+          original=pathlib.Path('qa-evidence/ios-info.original.plist');expected=pathlib.Path('qa-evidence/ios-info.expected.plist')
+          info_entry=next(item for item in proof['currentSourceRuntimeFiles'] if item['path']==config['path'])
+          assert sha(original)==config['sourceSha256']==info_entry['sha256']
+          assert sha(expected)==config['expectedSha256']
+          for item in proof['currentSourceRuntimeFiles']+proof['nativeFixtureFiles']+proof['runtimeDataFiles']+proof['testSupportFiles']:
+              if item['path']==config['path']:
+                  assert pathlib.Path(item['path']).read_bytes()==expected.read_bytes(),'Info.plist differs from exact approved build transform'
+              else:assert sha(item['path'])==item['sha256'],item['path']
+          config['actualSha256']=sha(config['path']);config['verifiedExactBytes']=True
+          assert config['actualSha256']==config['expectedSha256']
           info=plistlib.loads(pathlib.Path('build/ios-simulator/Build/Products/Debug-iphonesimulator/App.app/Info.plist').read_bytes())
           assert info['CFBundleIdentifier']=='vn.quangtu.tutam'
+          expected_info=plistlib.loads(expected.read_bytes())
+          assert info['CFBundleName']=='App'
+          assert info['CFBundleDisplayName']==expected_info['CFBundleDisplayName']
+          assert info['CFBundleURLTypes']==expected_info['CFBundleURLTypes']
+          config['productIdentity']={'bundleId':info['CFBundleIdentifier'],'bundleName':info['CFBundleName'],
+           'displayName':info['CFBundleDisplayName'],'urlTypes':info['CFBundleURLTypes']}
+          config_bytes=(json.dumps(config,indent=2)+'\n').encode()
+          for directory in (pathlib.Path('qa-evidence'),pathlib.Path('build/release-evidence'),root):
+              (directory/'ios-info-build-config.json').write_bytes(config_bytes)
+          for filename in ('ios-info.original.plist','ios-info.expected.plist'):(root/filename).write_bytes((pathlib.Path('qa-evidence')/filename).read_bytes())
           metadata={'schemaVersion':2,'ios':os.environ['IOS_RUNTIME'],'workflowRunId':os.environ['GITHUB_RUN_ID'],
            'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'harnessRepositoryCommit':os.environ['GITHUB_SHA'],
-           'archiveSha256':sha(root/'UITestProducts.tar.gz'),'sourceOverlaysProofSha256':sha(root/'source-overlays-proof.json'),**proof}
+           'archiveSha256':sha(root/'UITestProducts.tar.gz'),'sourceOverlaysProofSha256':sha(root/'source-overlays-proof.json'),**proof,
+           'generatedIosInfo':config,'generatedIosInfoProofSha256':sha(root/'ios-info-build-config.json')}
           (root/'products-metadata.json').write_text(json.dumps(metadata,indent=2)+'\n')
           PY
       - name: Upload reusable Products for this OS
@@ -427,7 +476,7 @@ jobs:
           cmp qa-evidence/moderation-brand-expected.json ../ios-prebuilt/current-source-expected.json
           cmp build/release-evidence/source-overlays-proof.json ../ios-prebuilt/source-overlays-proof.json
           python3 - <<'PY'
-          import hashlib,json,os,pathlib,tarfile
+          import hashlib,json,os,pathlib,plistlib,tarfile
           root=pathlib.Path('../ios-prebuilt');sha=lambda p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
           metadata=json.loads((root/'products-metadata.json').read_bytes());proof=json.loads((root/'source-overlays-proof.json').read_bytes())
           assert metadata['schemaVersion']==2 and all(metadata[key]==value for key,value in proof.items())
@@ -439,6 +488,21 @@ jobs:
           assert metadata['harnessRepositoryCommit']==os.environ['GITHUB_SHA']
           assert metadata['sourceOverlaysProofSha256']==sha(root/'source-overlays-proof.json')
           assert metadata['archiveSha256']==sha(root/'UITestProducts.tar.gz')
+          config=json.loads((root/'ios-info-build-config.json').read_bytes());expected_info=plistlib.loads((root/'ios-info.expected.plist').read_bytes())
+          assert metadata['generatedIosInfo']==config and metadata['generatedIosInfoProofSha256']==sha(root/'ios-info-build-config.json')
+          assert config['schemaVersion']==1 and config['path']=='ios/App/App/Info.plist' and config['transform']=='configureIosGoogle'
+          assert config['publicQaClientId']==os.environ['IOS_QA_GOOGLE_CLIENT_ID'] and config['verifiedExactBytes'] is True
+          info_entry=next(item for item in proof['currentSourceRuntimeFiles'] if item['path']==config['path'])
+          assert sha(config['path'])==sha(root/'ios-info.original.plist')==config['sourceSha256']==info_entry['sha256']
+          assert pathlib.Path(config['path']).read_bytes()==(root/'ios-info.original.plist').read_bytes()
+          assert sha(root/'ios-info.expected.plist')==config['expectedSha256']==config['actualSha256']
+          assert config['sourceHelperPath']=='scripts/lib/ios-google-config.mjs' and sha(config['sourceHelperPath'])==config['sourceHelperSha256']
+          helper_data=pathlib.Path(config['sourceHelperPath']).read_bytes()
+          helper_blob=hashlib.sha1(b'blob '+str(len(helper_data)).encode()+b'\0'+helper_data).hexdigest()
+          assert helper_blob==config['sourceHelperGitBlobSha1']==json.loads((root/'current-source-expected.json').read_bytes())[config['sourceHelperPath']]
+          assert config['productIdentity']=={'bundleId':'vn.quangtu.tutam','bundleName':'App','displayName':expected_info['CFBundleDisplayName'],'urlTypes':expected_info['CFBundleURLTypes']}
+          for filename in ('ios-info.original.plist','ios-info.expected.plist','ios-info-build-config.json'):
+              pathlib.Path('build/release-evidence',filename).write_bytes((root/filename).read_bytes())
           with tarfile.open(root/'UITestProducts.tar.gz','r:gz') as archive:
               for member in archive:
                   path=pathlib.PurePosixPath(member.name)
@@ -538,7 +602,7 @@ jobs:
       - name: Require every case once on both iOS versions
         run: |-
           python3 - <<'PY'
-          import hashlib,json,os,pathlib,runpy
+          import hashlib,json,os,pathlib,plistlib,runpy
           root=pathlib.Path('ios-native-evidence');root.mkdir(exist_ok=True)
           result={'status':'FAILED','expectedTests':26,'failedTests':None,'skippedTests':None,'groups':8}
           try:
@@ -557,7 +621,12 @@ jobs:
               summaries=list(root.rglob('native-ui-summary.json'))
               assert len(summaries)==8,'Expected exactly eight actual group summaries'
               assert os.environ['IOS_BUILD_RESULT']=='success' and os.environ['IOS_CASES_RESULT']=='success'
-              seen=set();total=0;proof_sha=None
+              seen=set();total=0;proof_sha=None;config_sha=None
+              helper_path='scripts/lib/ios-google-config.mjs'
+              helper_blob=json.loads(pathlib.Path('harness/mobile-current-manifest.json').read_bytes())['expected'][helper_path]
+              for name in ('ui-fixes.json','current-follow-up.json','qa-test-follow-up.json','late-overlay.json','moderation-brand-overlay.json'):
+                  for item in json.loads(pathlib.Path('harness',name).read_bytes())['files']:
+                      if item['path']==helper_path:helper_blob=item['gitBlobSha1']
               for path in summaries:
                   data=json.loads(path.read_bytes());key=(data['ios'],data['group'])
                   assert key in expected and key not in seen
@@ -577,6 +646,19 @@ jobs:
                   assert metadata['sourceOverlaysProofSha256']==digest and metadata['ios']==data['ios']
                   assert metadata['workflowRunId']==os.environ['GITHUB_RUN_ID'] and metadata['workflowRunAttempt']==os.environ['GITHUB_RUN_ATTEMPT']
                   assert metadata['harnessRepositoryCommit']==os.environ['GITHUB_SHA']
+                  config_path=path.parent/'ios-info-build-config.json';config=json.loads(config_path.read_bytes())
+                  digest_config=sha(config_path)
+                  if config_sha is None:config_sha=digest_config
+                  assert digest_config==config_sha==metadata['generatedIosInfoProofSha256']
+                  assert config==metadata['generatedIosInfo'] and config['schemaVersion']==1 and config['transform']=='configureIosGoogle'
+                  assert config['path']=='ios/App/App/Info.plist' and config['publicQaClientId']==os.environ['IOS_QA_GOOGLE_CLIENT_ID']
+                  info_entry=next(item for item in proof['currentSourceRuntimeFiles'] if item['path']==config['path'])
+                  assert config['sourceSha256']==info_entry['sha256']==sha(path.parent/'ios-info.original.plist')
+                  assert config['expectedSha256']==config['actualSha256']==sha(path.parent/'ios-info.expected.plist')
+                  assert config['sourceHelperPath']==helper_path and config['sourceHelperGitBlobSha1']==helper_blob
+                  assert config['verifiedExactBytes'] is True
+                  expected_info=plistlib.loads((path.parent/'ios-info.expected.plist').read_bytes())
+                  assert config['productIdentity']=={'bundleId':'vn.quangtu.tutam','bundleName':'App','displayName':expected_info['CFBundleDisplayName'],'urlTypes':expected_info['CFBundleURLTypes']}
                   assert proof['simulatorReadinessPolicy']=={'command':'xcrun simctl listapps','timeoutSeconds':120,'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750}
                   readiness=json.loads((path.parent/'simulator-readiness.json').read_bytes())
                   assert readiness['ready'] is True and readiness['ios']==data['ios'] and readiness['nativeAssertionsChanged'] is False
@@ -594,7 +676,7 @@ jobs:
                'currentSourceOverlayManifestSha256':os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256'],
                'currentSourceExpectedMapSha256':os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256'],
                'harnessSha256':os.environ['IOS_HARNESS_SHA256'],'caseRunnerSha256':os.environ['IOS_CASE_RUNNER_SHA256'],
-               'sourceOverlaysProofSha256':proof_sha})
+               'sourceOverlaysProofSha256':proof_sha,'generatedIosInfoProofSha256':config_sha})
           except Exception as error:
               result['failureType']=type(error).__name__;result['failure']=str(error)[:2000]
               raise
