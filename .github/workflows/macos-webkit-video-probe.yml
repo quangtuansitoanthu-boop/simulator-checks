@@ -1,0 +1,208 @@
+name: macOS WebKit real video resume probe
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/macos-webkit-video-probe.yml']
+permissions:
+  contents: read
+concurrency:
+  group: macos-webkit-video-probe-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  video:
+    name: macOS WebKit landscape video resume and HUD
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      SVELTEKIT_BASE_URL: http://localhost:8787
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      TUTAM_E2E_LOCAL_ONLY: '1'
+      TUTAM_E2E_PREBUILT: '1'
+      TUTAM_E2E_DEV_API: '1'
+      TUTAM_E2E_RUNTIME_PORT: '8787'
+      TUTAM_E2E_PROXY_PORT: '8799'
+      WRANGLER_SEND_METRICS: 'false'
+      DO_NOT_TRACK: '1'
+      WRANGLER_LOG_PATH: ${{ github.workspace }}/app/build/github-ui-evidence/wrangler-user.log
+      TUTAM_LATE_MANIFEST_SHA256: 934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with: {path: harness, persist-credentials: false}
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Apply verified current application and reviewed regression overlays
+        run: |
+          set -euo pipefail
+          echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | shasum -a 256 -c -
+          python3 ../harness/apply-current.py .
+          python3 ../harness/apply-ui-fixes.py .
+          python3 ../harness/apply-current-follow-up.py .
+          python3 ../harness/apply-qa-test-follow-up.py .
+          echo "$TUTAM_LATE_MANIFEST_SHA256  ../harness/late-overlay.json" | shasum -a 256 -c -
+          python3 ../harness/apply-late-overlay.py .
+      - uses: actions/setup-node@v6
+        with: {node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json}
+      - name: Install locked packages and macOS WebKit
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps webkit
+      - name: Build the canonical local Worker application
+        run: npm run build
+      - name: Stage guarded persistent fixture and retain source proofs
+        run: |
+          set -euo pipefail
+          mkdir -p build/github-ui-evidence
+          cp qa-evidence/*verification.json build/github-ui-evidence/
+          cp ../harness/ui-webkit.config.ts tests/e2e/github-webkit.config.ts
+          echo '516c34cc0dcdf51bd07dfe72d9dcbf34090bd038f3b178ec16d2fb35bf092b1b  ../harness/webkit-persistent-fixtures.ts' | shasum -a 256 -c -
+          echo '7f0b1d1f538d640d4fe26893be60cd886bbf2fa01aeef7b989f80feff52ee6ef  ../harness/stage-webkit-persistent.py' | shasum -a 256 -c -
+          python3 ../harness/stage-webkit-persistent.py . --proof build/github-ui-evidence/webkit-persistent-stage-proof.json
+          { sw_vers; uname -m; node --version; npx playwright --version; } > build/github-ui-evidence/platform.txt
+      - name: Isolate shared backend hosts on the ephemeral macOS runner
+        run: |
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          hosts.update(re.findall(r'https://([a-z0-9.-]+)',pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()))
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'macos-video-hosts.backup'
+          assert not backup.exists()
+          original=pathlib.Path('/etc/hosts').read_text();backup.write_text(original)
+          lines=[]
+          for line in original.splitlines():
+              address,_,_=line.partition('#');parts=address.split()
+              if len(parts)>1 and any(host.lower() in hosts for host in parts[1:]):
+                  aliases=[host for host in parts[1:] if host.lower() not in hosts]
+                  if aliases:lines.append(parts[0]+'\t'+' '.join(aliases))
+              else:lines.append(line)
+          for host in sorted(hosts):
+              assert re.fullmatch(r'[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({value[4][0] for value in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(value).is_loopback for value in addresses)
+              proof[host]=addresses
+          pathlib.Path('build/github-ui-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - name: Run one real-media case against one supervised local Worker
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,signal,subprocess,time,urllib.request
+          root=pathlib.Path.cwd();out=root/'build/github-ui-evidence'
+          case='landscape talk video keeps 16:9 inline, exits fullscreen to its list and preserves one player'
+          selection=['node','node_modules/@playwright/test/cli.js','test','--config','tests/e2e/github-webkit.config.ts','--project','desktop-1440-light','tests/e2e/mobile-talk-video-audio.spec.ts','--grep',case+'$','--workers','1']
+          env=os.environ.copy();env['PLAYWRIGHT_JSON_OUTPUT_FILE']=str(out/'selected.json')
+          subprocess.run(selection+['--list','--reporter=json'],env=env,check=True)
+          selected=json.loads((out/'selected.json').read_text())
+          def specs(suites):
+              return [spec for suite in suites for spec in suite.get('specs',[])]+[spec for suite in suites for spec in specs(suite.get('suites',[]))]
+          listed=specs(selected.get('suites',[]))
+          assert len(listed)==1 and listed[0]['title']==case and len(listed[0]['tests'])==1 and not selected.get('errors'),'Expected exactly the existing landscape media case'
+          processes=[];result=1;failure=None;readiness={'ready':False,'attempts':[]};stopped=False
+          def members(group):
+              rows=subprocess.run(['/bin/ps','-axo','pid=,pgid=,stat='],capture_output=True,text=True,check=True,timeout=10).stdout.splitlines()
+              return [int(parts[0]) for row in rows if len(parts:=row.split())>=3 and int(parts[1])==group and not parts[2].startswith('Z')]
+          def stop(process,label):
+              group=process.pid
+              assert group>1 and group!=os.getpgrp()
+              before=members(group)
+              if before:
+                  os.killpg(group,signal.SIGTERM)
+                  end=time.monotonic()+10
+                  while members(group) and time.monotonic()<end:time.sleep(.2)
+                  if members(group):
+                      os.killpg(group,signal.SIGKILL)
+                      end=time.monotonic()+3
+                      while members(group) and time.monotonic()<end:time.sleep(.1)
+              remaining=members(group)
+              assert not remaining,'Managed process group still running'
+              return {'label':label,'pid':process.pid,'pgid':group,'before':before,'remaining':remaining,'stopped':True}
+          try:
+              with (out/'runtime.log').open('w') as runtime_log,(out/'test.log').open('w') as test_log:
+                  runtime=subprocess.Popen(['node','tests/e2e/start-local-runtime.mjs'],stdin=subprocess.DEVNULL,stdout=runtime_log,stderr=subprocess.STDOUT,start_new_session=True)
+                  processes.append((runtime,'runtime'));assert os.getpgid(runtime.pid)==runtime.pid
+                  (out/'runtime-owner.json').write_text(json.dumps({'pid':runtime.pid,'pgid':runtime.pid,'platform':'darwin'},indent=2))
+                  opener=urllib.request.build_opener(urllib.request.ProxyHandler({}));started=time.monotonic();deadline=started+120
+                  while time.monotonic()<deadline:
+                      assert runtime.poll() is None,'Local runtime exited before readiness'
+                      attempt={'elapsedSeconds':round(time.monotonic()-started,2)}
+                      try:
+                          for label,path in [('health','/api/health'),('root','/')]:
+                              remaining=deadline-time.monotonic()
+                              if remaining<=0:raise TimeoutError('Runtime readiness deadline reached')
+                              request=urllib.request.Request('http://127.0.0.1:8787'+path,headers={'Host':'localhost:8787','Cache-Control':'no-store'})
+                              with opener.open(request,timeout=min(3,remaining)) as response:
+                                  body=response.read(262144);status=response.status;kind=response.headers.get('content-type','')
+                              attempt[label]={'status':status,'contentType':kind,'bytes':len(body)}
+                              assert status==200
+                              if label=='root':assert 'text/html' in kind and b'<html' in body.lower()
+                          readiness['ready']=True;readiness['attempts'].append(attempt);break
+                      except Exception as error:
+                          attempt['error']=str(error);readiness['attempts'].append(attempt)
+                      time.sleep(min(1,max(0,deadline-time.monotonic())))
+                  assert readiness['ready'],'Local runtime did not serve health plus root HTML within 120s'
+                  env['PLAYWRIGHT_JSON_OUTPUT_FILE']=str(out/'results.json')
+                  tests=subprocess.Popen(selection+['--reporter=line,json'],env=env,stdout=test_log,stderr=subprocess.STDOUT,start_new_session=True)
+                  processes.append((tests,'test-cli'));result=tests.wait(timeout=720)
+          except Exception as error:
+              failure=str(error)
+          finally:
+              cleanup=[]
+              try:
+                  for process,label in reversed(processes):cleanup.append(stop(process,label))
+                  stopped=True
+              finally:
+                  (out/'runtime-readiness.json').write_text(json.dumps(readiness,indent=2))
+                  (out/'runtime-stop.json').write_text(json.dumps({'stopped':stopped,'groups':cleanup,'failure':failure},indent=2))
+          print(json.dumps({'runtimeReady':readiness['ready'],'testExitCode':result,'stopped':stopped,'failure':failure}))
+          assert stopped and failure is None and result==0,'Focused real-media test or local runtime failed'
+          PY
+      - name: Require exactly one pass and preserve media diagnostics
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          out=pathlib.Path('build/github-ui-evidence');out.mkdir(parents=True,exist_ok=True);p=out/'results.json'
+          data=json.loads(p.read_text()) if p.is_file() else {'errors':['Missing results'],'stats':{}}
+          stats=data.get('stats',{})
+          valid=(stats.get('expected')==1 and stats.get('unexpected')==0 and stats.get('skipped')==0 and stats.get('flaky')==0 and not data.get('errors'))
+          summary={'platform':'macos-15','browser':'webkit','expectedCases':1,'stats':stats,'errors':data.get('errors',[]),'gate':'PASSED' if valid else 'FAILED'}
+          (out/'macos-video-summary.json').write_text(json.dumps(summary,indent=2))
+          print(json.dumps(summary,indent=2))
+          assert valid,'One-case WebKit video gate did not pass'
+          PY
+      - name: Restore isolated host resolution only after managed runtime stops
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          out=pathlib.Path('build/github-ui-evidence');owner=out/'runtime-owner.json';state=out/'runtime-stop.json'
+          assert not owner.exists() or state.exists() and json.loads(state.read_text())['stopped'],'Do not restore network while a managed process group is active'
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'macos-video-hosts.backup'
+          if backup.exists():
+              subprocess.run(['sudo','cp',str(backup),'/etc/hosts'],check=True)
+              assert pathlib.Path('/etc/hosts').read_bytes()==backup.read_bytes()
+          PY
+      - name: Upload readable results traces and bounded actual media state
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-webkit-video-${{ github.run_id }}
+          path: |
+            app/build/github-ui-evidence/
+            app/test-results/
+            app/tests/e2e/test-results/
+          retention-days: 7
+          if-no-files-found: error
