@@ -3,10 +3,42 @@
   "phase": "final",
   "readyForPublication": true,
   "snapshotPurpose": "immutable_candidate_for_github_qa",
+  "snapshotRevision": "v2-native-origin-proof",
+  "previousSnapshotManifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
   "finalCandidateForQA": true,
   "validation": {
-    "localE2E": "not_yet_passed",
-    "claimsApplicationValidated": false
+    "fullCurrentCore": {
+      "passed": 4531,
+      "skipped": 3,
+      "source": "coordinator reported local core exit 0; Windows fixture skips retained",
+      "runBySnapshotAgent": false
+    },
+    "currentV2NativeAndUI": "not_yet_verified",
+    "claimsApplicationValidated": false,
+    "priorV1Evidence": {
+      "manifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
+      "uiExecutions": 40,
+      "androidNativeAndGuestExecutions": 64,
+      "scope": "v1 candidate unaffected-flow evidence, not a v2 execution"
+    },
+    "userContentCorrection": {
+      "at": "2026-11-21T22:35:09+07:00",
+      "text": "Bước 1: Đọc lời nguyện hương",
+      "paths": [
+        "src/lib/i18n/refuge-release.ts",
+        "tests/unit/refuge-release.test.ts",
+        "tests/e2e/home-refuge-release.spec.ts"
+      ],
+      "effect": "one requested content literal and corresponding expected text hashes only; layout/API unchanged",
+      "postGateFocusedCases": 26,
+      "source": "refuge-release session log and coordinator reported targeted pass"
+    },
+    "focusedNativeOrigin": {
+      "passed": 141,
+      "newCases": 15,
+      "source": "coordinator reported focused local run",
+      "runBySnapshotAgent": false
+    }
   },
   "productionDeploymentAuthorized": false,
   "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
@@ -20,23 +52,23 @@
   },
   "scope": "User-approved 48-hour mindful moderation and canonical Tu Tap Phat Phap display name; local source/schema only; no production deployment",
   "archive": "moderation-brand-overlay.tar.gz",
-  "archiveSha256": "f4dc39ca5330638a3e229d2fc92e09d7eab30395b69d150e28df0ac615a22569",
-  "archiveBytes": 591609,
+  "archiveSha256": "ad20b213cefb725b06b0833bdbbb2e91c5ac8516b1acbe0bf24533fb126b3759",
+  "archiveBytes": 596270,
   "baseEffectiveFileCount": 3275,
   "currentExpectedFileCount": 3292,
-  "currentExpectedMapSha256": "ba6f3df58437fa40e3e7be5c282185a3acfee043c394e10092711517645b9567",
+  "currentExpectedMapSha256": "4c9a429cf83f26548bec69ee6c551003ee71d23ad774d044c37588cf8e61ef4f",
   "addedFileCount": 17,
-  "fileCount": 111,
+  "fileCount": 113,
   "classificationCounts": {
     "native-test": 3,
     "native-runtime": 4,
     "build-config": 1,
     "schema": 1,
-    "client-runtime": 62,
+    "client-runtime": 64,
     "test": 30,
     "server-runtime": 10
   },
-  "runtimeFileCount": 78,
+  "runtimeFileCount": 80,
   "runtimePaths": [
     "android/app/src/main/java/vn/quangtu/tutam/StartupArtworkView.java",
     "android/app/src/main/java/vn/quangtu/tutam/audio/DharmaAudioPlugin.java",
@@ -51,6 +83,7 @@
     "src/lib/browser/audio-player-controller.ts",
     "src/lib/browser/lunar-notifications.ts",
     "src/lib/browser/mindful-community-client.ts",
+    "src/lib/browser/native-api.ts",
     "src/lib/browser/native-talk-audio.ts",
     "src/lib/browser/practice-reminder-service.ts",
     "src/lib/components/admin/community/AdminModerationDecisionDialog.svelte",
@@ -73,6 +106,7 @@
     "src/lib/contracts/community-moderation.ts",
     "src/lib/contracts/legacy-compatibility.ts",
     "src/lib/contracts/mindful-community.ts",
+    "src/lib/data/offline-album-plays.json",
     "src/lib/domain/practice/mindful-policy.ts",
     "src/lib/domain/practice/mindful-post-review.ts",
     "src/lib/domain/social-preview.ts",
@@ -117,7 +151,7 @@
     "src/service-worker.ts",
     "static/manifest.json"
   ],
-  "totalBytes": 2391289,
+  "totalBytes": 2405964,
   "files": [
     {
       "path": "android/app/src/androidTest/java/vn/quangtu/tutam/audio/DharmaAudioWidgetInitialLayoutTest.java",
@@ -302,6 +336,17 @@
       "gitBlobSha1": "9093173894f31276b7d17955662bc731f269d7e1",
       "sha256": "d20df35a120208391eaecee1d015d692e023301fa0aab8663a54e09f2ecaa310",
       "bytes": 7577,
+      "classification": "client-runtime",
+      "runtime": true,
+      "binary": false
+    },
+    {
+      "path": "src/lib/browser/native-api.ts",
+      "operation": "modify",
+      "baseGitBlobSha1": "232a32fffbb79f0803a9dff3e4f3da051900a555",
+      "gitBlobSha1": "5279aa41f902e3d442a0f2cdfd500292bea2a229",
+      "sha256": "6f6949135373c5060e4de0dae035944ebb4d6a9809b18221841dc3919a6e532d",
+      "bytes": 7338,
       "classification": "client-runtime",
       "runtime": true,
       "binary": false
@@ -549,6 +594,17 @@
       "binary": false
     },
     {
+      "path": "src/lib/data/offline-album-plays.json",
+      "operation": "modify",
+      "baseGitBlobSha1": "872140f0608bdb8682637666eb785d697883dd34",
+      "gitBlobSha1": "c0da09fd14a31bbe2b4087a2c017c01cfa1d88ce",
+      "sha256": "61b5e4ed343732beb0cc8ee587c561b53840ca7b080a959a9de280a670e795dc",
+      "bytes": 3943,
+      "classification": "client-runtime",
+      "runtime": true,
+      "binary": false
+    },
+    {
       "path": "src/lib/domain/practice/mindful-policy.ts",
       "operation": "add",
       "baseGitBlobSha1": null,
@@ -640,9 +696,9 @@
       "path": "src/lib/i18n/refuge-release.ts",
       "operation": "add",
       "baseGitBlobSha1": null,
-      "gitBlobSha1": "17c3e676c3cb16498c341f35ceb76d540f1b9a23",
-      "sha256": "2cae3d91ef2ec3cb988487f68cb6712ee21ee79d2c0c7e49192163e39cb0f2f6",
-      "bytes": 7525,
+      "gitBlobSha1": "2ae7a2a61a3acbc7b3420d0a7e69aa1747a4befe",
+      "sha256": "6837fb453a62407a6ebe422ed53d175844cad8195f9954a7d74c678871ec1e81",
+      "bytes": 7448,
       "classification": "client-runtime",
       "runtime": true,
       "binary": false
@@ -1157,8 +1213,8 @@
       "path": "tests/e2e/home-refuge-release.spec.ts",
       "operation": "add",
       "baseGitBlobSha1": null,
-      "gitBlobSha1": "941c8b240f09dd36bc3755b0059d8819bf2d4a10",
-      "sha256": "728f8cb76ef5862b4b6697c1d0876439f67b0df29c85fe9da7bc1162fc1c03b1",
+      "gitBlobSha1": "e5e1654cf7f90dc4332928068dfdef8083252517",
+      "sha256": "33cdaa50bf10286999360f3b5df830916c3610ad895aff038ef20a269c4abfd6",
       "bytes": 4900,
       "classification": "test",
       "runtime": false,
@@ -1289,9 +1345,9 @@
       "path": "tests/unit/native-session-mutation-transport.test.ts",
       "operation": "modify",
       "baseGitBlobSha1": "aece532c03b533102a3917267f5384b4a17b6ef6",
-      "gitBlobSha1": "edb0d628964684f223caec4c84ff3879a73a6fd7",
-      "sha256": "debb57c774d1edcd6a63246b66e7583809ea3b5815c1ebe1a18014119073775f",
-      "bytes": 20944,
+      "gitBlobSha1": "c50a004a477d0de41da9fa8eb34ec9477e49e884",
+      "sha256": "2aa4dfc071395b87df19ec0f543901d0bfe1e38b13d13070afbf018341369aa7",
+      "bytes": 24415,
       "classification": "test",
       "runtime": false,
       "binary": false
@@ -1333,8 +1389,8 @@
       "path": "tests/unit/refuge-release.test.ts",
       "operation": "add",
       "baseGitBlobSha1": null,
-      "gitBlobSha1": "1f1881c1d0c294125558b2e71bf074c93caa2bb7",
-      "sha256": "e8e37aa753a904abd3e6e43d8aed6dc3b5efcc0b23954cb84ec1e1377459ce67",
+      "gitBlobSha1": "df4a98eeb4f1dcf8672e7114470239d504906295",
+      "sha256": "2efad53a2a8c6cbf6b45f80e363b0d06d5ebc4a1df12ceaf160e0efd62657977",
       "bytes": 2085,
       "classification": "test",
       "runtime": false,
