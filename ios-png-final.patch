@@ -1,0 +1,78 @@
+--- a/ios/App/App/TuTapBridgeViewController.swift
++++ b/ios/App/App/TuTapBridgeViewController.swift
+@@ -269,10 +269,14 @@
+                     self.picker = picker
+                     presenter.present(picker, animated: true) { [weak self, weak picker] in
+                         guard let self = self, let picker = picker, self.picker === picker else { return }
++                        // UIKit chỉ hoàn tất quan hệ trình bày tại completion; không dọn file trong lúc mở picker.
++                        guard picker.presentingViewController != nil else {
++                            self.finishExport(saved: nil)
++                            return
++                        }
+                         picker.presentationController?.delegate = self
+                     }
+                     picker.presentationController?.delegate = self
+-                    if picker.presentingViewController == nil { self.finishExport(saved: nil) }
+                 }
+             }
+         }
+--- a/ios/App/AppUITests/NativeGuestSmokeTests.swift
++++ b/ios/App/AppUITests/NativeGuestSmokeTests.swift
+@@ -424,6 +424,7 @@
+         let pickerSave = pickerNavigation.buttons.matching(NSPredicate(format: "label IN %@", ["Lưu", "Save"] as NSArray)).firstMatch
+         XCTAssertTrue(pickerSave.waitForExistence(timeout: 20), "PNG export must present the native Files destination picker instead of a blob navigation")
+         XCTAssertTrue(pickerNavigation.exists, "The save action must belong to the native Files navigation")
++        XCTAssertFalse(saveImage.isEnabled, "The export promise must remain pending while the native picker owns the file")
+         evidence("quote-image-native-files-picker", app: app)
+         let cancel = app.buttons.matching(NSPredicate(format: "label IN %@", ["Hủy", "Cancel"] as NSArray)).firstMatch
+         if cancel.exists && cancel.isHittable {
+@@ -447,6 +448,7 @@
+         evidence("quote-image-cancel-preserves-dialog", app: app)
+         tap(saveImage, app: app)
+         XCTAssertTrue(pickerSave.waitForExistence(timeout: 20), "A second export must open a fresh native destination after cancellation")
++        XCTAssertFalse(saveImage.isEnabled, "The second export must keep its source file until native completion")
+         XCTAssertTrue(pickerSave.isHittable)
+         pickerSave.tap()
+         waitUntil("Saving the native PNG must return to the usable quote dialog") {
+--- a/src/lib/components/home/DailyDhammapadaCard.svelte
++++ b/src/lib/components/home/DailyDhammapadaCard.svelte
+@@ -78,7 +78,10 @@
+     </cite>
+   </footer>
+ 
+-  <button class="create-quote-image" type="button" onclick={() => quoteImageOpen = true}>
++  <button class="create-quote-image" type="button" onclick={(event) => {
++    event.currentTarget.focus({ preventScroll: true });
++    quoteImageOpen = true;
++  }}>
+     <ImagePlus size={18} aria-hidden="true" />
+     {quoteCardCopy[isEn ? 'en' : 'vi'].create}
+   </button>
+--- a/src/lib/components/reader/QuoteCardModal.svelte
++++ b/src/lib/components/reader/QuoteCardModal.svelte
+@@ -8,7 +8,7 @@
+   import { createQuoteCardLayout, justifiedWordPositions } from './quote-card-layout';
+   import { modalDialog } from '$lib/browser/modal-dialog';
+   import { savePngImage } from '$lib/browser/image-export';
+-  import { isNativeApp, nativePlatform } from '$lib/browser/native-platform';
++  import { isNativeApp } from '$lib/browser/native-platform';
+ 
+   interface Props {
+     open: boolean;
+@@ -165,7 +165,7 @@
+     try {
+       isGenerating = true;
+       const saved = await savePngImage(await exportBlob(), `trich-dan-quangtu-${Date.now()}.png`);
+-      if (saved) showToast(isNativeApp() && nativePlatform() === 'android' ? 'Đã lưu ảnh PNG vào máy.' : 'Đã bắt đầu tải ảnh PNG.');
++      if (saved) showToast(isNativeApp() ? 'Đã lưu ảnh PNG vào máy.' : 'Đã bắt đầu tải ảnh PNG.');
+     } catch {
+       showToast('Không thể tải ảnh. Vui lòng thử lại.');
+     } finally {
+@@ -447,6 +447,7 @@
+ 
+   .quote-btn {
+     flex: 1;
++    min-height: var(--touch-target-size);
+     display: inline-flex;
+     align-items: center;
+     justify-content: center;
