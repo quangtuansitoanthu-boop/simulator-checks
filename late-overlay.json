@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
+  "baselineCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
+  "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
+  "prerequisiteManifests": {
+    "ui-fixes.json": "b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295",
+    "current-follow-up.json": "9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137",
+    "qa-test-follow-up.json": "eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa"
+  },
+  "scope": "Reviewed focus recovery, current bundled counts/banner and matching unit coverage; deterministic clipboard/clock fixtures and stricter actual media resume diagnostics. No API, storage key, schema or dependency changes.",
+  "archive": "late-overlay.tar.gz",
+  "archiveSha256": "cbb906470d108669c2edee9c131e798110dd3f40b20186711625477009aafacf",
+  "archiveBytes": 24317,
+  "fileCount": 7,
+  "runtimeFileCount": 3,
+  "runtimePaths": [
+    "src/lib/components/practice/name-copying/NameCopying.svelte",
+    "src/lib/data/offline-album-plays.json",
+    "src/lib/i18n/content-experience-notice.ts"
+  ],
+  "totalBytes": 96083,
+  "files": [
+    {
+      "path": "src/lib/components/practice/name-copying/NameCopying.svelte",
+      "baseGitBlobSha1": "759c81f5966690ac65a546d511898ee00f9c1d75",
+      "sha256": "5003ebedfa2f083fdc1e1ef93d07e0b757a15730bb39900372a487f214d4f7d9",
+      "gitBlobSha1": "23d9c25c213f74c8b75ac80864a272639f957021",
+      "bytes": 16984,
+      "runtime": true
+    },
+    {
+      "path": "src/lib/data/offline-album-plays.json",
+      "baseGitBlobSha1": "3e7b7c67b0651598c855bfc5b93837369222b428",
+      "sha256": "3690a0944f675960bd1c1c000072ca258c2a9e8cc1279bba3e337a758d39d45b",
+      "gitBlobSha1": "872140f0608bdb8682637666eb785d697883dd34",
+      "bytes": 3943,
+      "runtime": true
+    },
+    {
+      "path": "src/lib/i18n/content-experience-notice.ts",
+      "baseGitBlobSha1": "adcb8d4e2796b1062b02e178267cba0e31564041",
+      "sha256": "faefb5920939f5dd6d2ec7128c149fbda902026a3f8d91c9bdad5196ccf75f10",
+      "gitBlobSha1": "4e023b96caac941e6d204ecfb316e09fb708218b",
+      "bytes": 4084,
+      "runtime": true
+    },
+    {
+      "path": "tests/e2e/copying-layout.spec.ts",
+      "baseGitBlobSha1": "dcb3ca0704103f62613e3a2a9dedd4d9209642da",
+      "sha256": "7d4a3a3e39d89ce9eecea22010bc253a84cf422595791d03d563a13fbc56abd9",
+      "gitBlobSha1": "b9225b807c9e20ccdd16a6365b60de7c5fa51fdc",
+      "bytes": 29127,
+      "runtime": false
+    },
+    {
+      "path": "tests/e2e/meditation-completion.spec.ts",
+      "baseGitBlobSha1": "adae753c24915bc94b035c7b188809caf3efc793",
+      "sha256": "d5737b800526959f21df01f9f622b695eefd72cdb5d726dc815cf1e88ebe7eef",
+      "gitBlobSha1": "2a38b9d2ab387e8b04a41c66443fed8562ac1bd8",
+      "bytes": 9844,
+      "runtime": false
+    },
+    {
+      "path": "tests/e2e/mobile-talk-video-audio.spec.ts",
+      "baseGitBlobSha1": "c0fbd378713685f7621f53b0bbad5ebb27580ad6",
+      "sha256": "a6ca80534b44ee191aa03c3c88a06b3427834a4ba739d937808de838910c44d7",
+      "gitBlobSha1": "a85698f1a736ceacf8c43fc7e514a9fa5772fec7",
+      "bytes": 29625,
+      "runtime": false
+    },
+    {
+      "path": "tests/unit/content-experience-notice.test.ts",
+      "baseGitBlobSha1": "6cc4891ecb1ae2654cf56d8c26824c9e0afbbc3f",
+      "sha256": "ec76cec15aaccb60647ff913ec7e1a193d7a6827ec4951866969c02abcc21cf5",
+      "gitBlobSha1": "d01294503a75003c3160ffedc435e9d4ce69543f",
+      "bytes": 2476,
+      "runtime": false
+    }
+  ],
+  "sourceConcurrencyGuard": "All seven files match reviewed SHA-256 before and after archive creation",
+  "sensitiveFindings": []
+}
