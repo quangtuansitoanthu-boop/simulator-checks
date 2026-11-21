@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   smoke:
-    name: Two real persistent WebKit context cases
+    name: Three real persistent WebKit context cases
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -50,7 +50,7 @@ jobs:
           set -euo pipefail
           npm ci --no-audit --no-fund
           npx playwright install --with-deps webkit
-      - name: Verify and stage only the context fixture and two smoke cases
+      - name: Verify and stage only the context fixture and three smoke cases
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -58,8 +58,8 @@ jobs:
           source=pathlib.Path('../harness').resolve()
           app=pathlib.Path('.').resolve()
           expected={
-            'webkit-persistent-fixtures.ts':('tests/e2e/helpers/webkit-persistent-fixtures.ts','848e215fb194cafb1eb424d084febbdef38c5a496328a4a11779b680b6f5496a'),
-            'github-persistent-smoke.spec.ts':('tests/e2e/github-persistent-smoke.spec.ts','ee2764857300cbe34d69e54e6e6bb9a7774d218f6252eb940a019be170aa4fcd'),
+            'webkit-persistent-fixtures.ts':('tests/e2e/helpers/webkit-persistent-fixtures.ts','516c34cc0dcdf51bd07dfe72d9dcbf34090bd038f3b178ec16d2fb35bf092b1b'),
+            'github-persistent-smoke.spec.ts':('tests/e2e/github-persistent-smoke.spec.ts','844982a69970ff78557cecbf45c24a72df2b84c56b0faae273eaecac8c7ea40a'),
             'github-persistent-smoke.config.ts':('tests/e2e/github-persistent-smoke.config.ts','7804ed54d8a40f5c7164c10480fc6243042440b95a9bba07cdd28e1bf442b01d'),
           }
           pending=[]
@@ -74,11 +74,11 @@ jobs:
               target.write_bytes(data)
           output=app/'qa-evidence/webkit-persistent-smoke'
           output.mkdir(parents=True,exist_ok=True)
-          (output/'staging.json').write_text(json.dumps({'fixtureSha256':expected['webkit-persistent-fixtures.ts'][1],'smokeCases':2,'productionApiRequests':0,'appBuild':False,'d1':False},indent=2)+'\n')
+          (output/'staging.json').write_text(json.dumps({'fixtureSha256':expected['webkit-persistent-fixtures.ts'][1],'smokeCases':3,'productionApiRequests':0,'appBuild':False,'d1':False},indent=2)+'\n')
           PY
-      - name: Run both real persistent WebKit smoke cases
+      - name: Run all three real persistent WebKit smoke cases
         run: npx playwright test --config tests/e2e/github-persistent-smoke.config.ts
-      - name: Require exactly two passes with no failures skips retries or flaky results
+      - name: Require exactly three passes with no failures skips retries or flaky results
         if: always()
         run: |
           python3 - <<'PY'
@@ -94,7 +94,7 @@ jobs:
                   walk(suite.get('suites',[]))
           walk(data.get('suites',[]))
           stats=data.get('stats',{})
-          valid=(len(cases)==2 and stats.get('expected')==2 and stats.get('unexpected')==0
+          valid=(len(cases)==3 and stats.get('expected')==3 and stats.get('unexpected')==0
             and stats.get('skipped')==0 and stats.get('flaky')==0 and not data.get('errors')
             and all(case.get('expectedStatus')=='passed' and len(case.get('results',[]))==1
               and case['results'][0].get('status')=='passed' and case['results'][0].get('retry',0)==0 for case in cases))
@@ -103,7 +103,7 @@ jobs:
           output.mkdir(parents=True,exist_ok=True)
           (output/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
           print(json.dumps(summary,indent=2))
-          assert valid,'Persistent context smoke requires exactly 2 passed, 0 failed, 0 skipped, 0 flaky, 0 retries'
+          assert valid,'Persistent context smoke requires exactly 3 passed, 0 failed, 0 skipped, 0 flaky, 0 retries'
           PY
       - name: Upload lifecycle Blob IDB and strict smoke evidence
         if: always()
