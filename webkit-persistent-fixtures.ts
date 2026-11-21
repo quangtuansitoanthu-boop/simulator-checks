@@ -44,7 +44,7 @@ export const test = base.extend<{ appBrowserContext: AppBrowserContext }>({
           });
           // Explicit calls keep their own options; the default context passes resolved defaults.
           if (storageState !== undefined) await entry.context.setStorageState(storageState);
-          for (const page of entry.context.pages()) await page.close();
+          // Closing WebKit's last initial page can terminate its persistent browser.
           await testInfo.attach(`webkit-persistent-profile-${owned.length}`, {
             contentType: 'application/json',
             body: Buffer.from(JSON.stringify({ fresh: true, profile: basename(entry.profile) })),
@@ -89,7 +89,10 @@ export const test = base.extend<{ appBrowserContext: AppBrowserContext }>({
     for (const [key, value] of Object.entries(resolvedOptions)) {
       if (value !== undefined) Object.assign(options, { [key]: value });
     }
-    // The existing page fixture creates one page after initial blank pages close.
     await use(await appBrowserContext(options));
+  },
+  page: async ({ context }, use) => {
+    const page = context.pages()[0] ?? await context.newPage();
+    await use(page);
   },
 });
