@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
+  "baselineCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
+  "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
+  "scope": "One runtime CSS correction and nine E2E fixture updates; original test declarations retained",
+  "archive": "ui-fixes.tar.gz",
+  "archiveSha256": "918daf4551b41e666a7a023a6ffee62745565974403dfe92d82522637a355230",
+  "archiveBytes": 44132,
+  "fileCount": 10,
+  "totalBytes": 190228,
+  "runtimePaths": [
+    "src/lib/components/practice/le-phat/LePhatScreen.svelte"
+  ],
+  "runtimeCss": {
+    "baseSha256": "8c4fc76ede246ba183f7cc4d604247d66df09fafa5e34f3afb470f87cf90dcec",
+    "sha256": "4241491007faf6548354542243b447b7d3b5dd1b3aae087dd1757ea51efd1f68",
+    "nonCssBytesUnchanged": true
+  },
+  "files": [
+    {
+      "path": "src/lib/components/practice/le-phat/LePhatScreen.svelte",
+      "scope": "runtime-css",
+      "baseGitBlobSha1": "54a01011fc8b4004c599f20baf567654a5afe586",
+      "sha256": "0d0bb8bb05aeaa8f1d3978655fa3856734821ccdad1d179b0ffd3a479e3e0b17",
+      "gitBlobSha1": "edb85565af913bba2473edb6b8a027180c934d2d",
+      "bytes": 58633
+    },
+    {
+      "path": "tests/e2e/name-copying.spec.ts",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "8ce0bc95dec8f5e70943e3060cd8ffd68b6188ca",
+      "sha256": "95f343fea8c6b7643f640762330b511fc4cc7e62276c518265aae5b0370da262",
+      "gitBlobSha1": "accfa340ffd3a32af806a2c7c4178b9821565620",
+      "bytes": 17418,
+      "testDeclarations": 11,
+      "disabledDeclarations": 0
+    },
+    {
+      "path": "tests/e2e/reader-defaults.spec.ts",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "6d3a58d2d54138780265f0216b1309ad9c446b9b",
+      "sha256": "2be2a791c52296c42212edc5f99203663d4a82d5164e6e6280d7cb8983142a3a",
+      "gitBlobSha1": "65e23443cb47d92dc9b013082cb86cb591c05a38",
+      "bytes": 12624,
+      "testDeclarations": 6,
+      "disabledDeclarations": 0
+    },
+    {
+      "path": "tests/e2e/visual-baseline.spec.ts",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "5eb6c1388a3dbf54d5f7d407fba5a17d79cea5d9",
+      "sha256": "9a900a56ea9ce1c85067080bae340e7f63e838fa54f705c725a115933247aff3",
+      "gitBlobSha1": "51352524795dec51793c64c3ec71b11f7e9aecc6",
+      "bytes": 10180,
+      "testDeclarations": 10,
+      "disabledDeclarations": 2
+    },
+    {
+      "path": "tests/e2e/tu-tap.spec.ts",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "c58398c0d48879c64d02dfda04584fc204c80276",
+      "sha256": "184ca5a79cf0406566d4d5c4d5a6872b0cae7dea39b3f6972735f9f312903fde",
+      "gitBlobSha1": "f5b5de84e1e3cf3e4788277d90c11bbc575472b6",
+      "bytes": 50394,
+      "testDeclarations": 22,
+      "disabledDeclarations": 1
+    },
+    {
+      "path": "tests/e2e/practice-control-layout.spec.ts",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "596344f715c2199d83e1017bcf2de1f92307bcbe",
+      "sha256": "bbf37184a9477359a45d4b45c4324ad73aef0ceea92b38121272e6abc0a43368",
+      "gitBlobSha1": "068c7fb851adcde4c0c4ae6b4053430c17e9504b",
+      "bytes": 9220,
+      "testDeclarations": 6,
+      "disabledDeclarations": 0
+    },
+    {
+      "path": "tests/e2e/notification-read-sync.spec.ts",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "08a47140a79d1d7a78d2f0c5fad424bb51bd548a",
+      "sha256": "15acf9e720d642c1a73949b3db906bf9b98e9fe721b18706b8548219d9817545",
+      "gitBlobSha1": "c65f85e707be294bc8b9d03c37df2f8524d391b0",
+      "bytes": 5019,
+      "testDeclarations": 2,
+      "disabledDeclarations": 0
+    },
+    {
+      "path": "tests/e2e/runtime-helpers.ts",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "1d8929887fed27c3c5e11c21fadc8c2502ee632f",
+      "sha256": "0237483837e2c00557e42084914e7dfc80545b8cf323232f91f85a61cc35e4f4",
+      "gitBlobSha1": "1300372aec4b76027f6d7e1dcb36589a66c44114",
+      "bytes": 7349
+    },
+    {
+      "path": "tests/e2e/fixtures/local-runtime-seed.sql",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "48f53a3224a90dadd39526c449eceac466798d58",
+      "sha256": "05c8e0dfa48dc05cc87ab4647b1616d1d74c1d8acc45e22f62dd14cc0e1b957c",
+      "gitBlobSha1": "8b2946307d0f153f843ad8931d57d9e0810022a9",
+      "bytes": 12059
+    },
+    {
+      "path": "tests/e2e/helpers/personal-journal-zen.ts",
+      "scope": "e2e-fixture",
+      "baseGitBlobSha1": "7e198e41f041e7466e38bacae440acb7fbd0af07",
+      "sha256": "055f9169b30d4251625ad3ab7539dd64cce05f91bd8310e0120c1c26d7dd17bd",
+      "gitBlobSha1": "09a5e8f932a04fc2947896e36629745105690849",
+      "bytes": 7332
+    }
+  ],
+  "sensitiveFindings": []
+}
