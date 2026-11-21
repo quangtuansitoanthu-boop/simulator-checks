@@ -60,7 +60,7 @@ jobs:
           expected={
             'webkit-persistent-fixtures.ts':('tests/e2e/helpers/webkit-persistent-fixtures.ts','848e215fb194cafb1eb424d084febbdef38c5a496328a4a11779b680b6f5496a'),
             'github-persistent-smoke.spec.ts':('tests/e2e/github-persistent-smoke.spec.ts','ee2764857300cbe34d69e54e6e6bb9a7774d218f6252eb940a019be170aa4fcd'),
-            'github-persistent-smoke.config.ts':('tests/e2e/github-persistent-smoke.config.ts','03085725947915b327eee8cb09675f9068244643e93bbf9c9b3d7518826d456a'),
+            'github-persistent-smoke.config.ts':('tests/e2e/github-persistent-smoke.config.ts','7804ed54d8a40f5c7164c10480fc6243042440b95a9bba07cdd28e1bf442b01d'),
           }
           pending=[]
           for name,(relative,digest) in expected.items():
