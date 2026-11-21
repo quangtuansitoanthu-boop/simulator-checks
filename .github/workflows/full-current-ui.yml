@@ -64,6 +64,8 @@ jobs:
           assert hashlib.sha256(path.read_bytes()).hexdigest()==os.environ['TUTAM_EXPECTED_MANIFEST_SHA256'],'Current source manifest mismatch'
           PY
           python3 ../harness/apply-current.py "$PWD"
+          python3 ../harness/apply-ui-fixes.py .
+          python3 ../harness/apply-current-follow-up.py .
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -79,8 +81,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/github-ui-evidence
+          cp qa-evidence/ui-fixes-verification.json build/github-ui-evidence/
+          cp qa-evidence/current-follow-up-verification.json build/github-ui-evidence/
           cp ../harness/ui-webkit.config.ts tests/e2e/github-webkit.config.ts
           if [[ "$TUTAM_UI_ENGINE" == webkit ]]; then
+            python3 ../harness/stage-webkit-persistent.py . --proof build/github-ui-evidence/webkit-persistent-stage-proof.json
             echo 'TUTAM_UI_CONFIG=tests/e2e/github-webkit.config.ts' >> "$GITHUB_ENV"
           else
             echo 'TUTAM_UI_CONFIG=tests/e2e/playwright.config.ts' >> "$GITHUB_ENV"
@@ -122,6 +127,8 @@ jobs:
           PLAYWRIGHT_JSON_OUTPUT_FILE="$evidence/shard-list.json" npx playwright test --config "$TUTAM_UI_CONFIG" --shard "$TUTAM_UI_SHARD/$TUTAM_UI_SHARDS" --list --reporter=json
           python3 ../harness/ui-report-summary.py --mode list --engine "$TUTAM_UI_ENGINE" --shard "$TUTAM_UI_SHARD" --shards "$TUTAM_UI_SHARDS" --evidence build/github-ui-evidence --expected-original 1168
       - name: Start one explicit isolated runtime and verify health plus root HTML
+        env:
+          WRANGLER_LOG_PATH: ${{ github.workspace }}/app/build/github-ui-evidence/wrangler-user.log
         run: |
           set -euo pipefail
           evidence="$PWD/build/github-ui-evidence"
@@ -235,6 +242,14 @@ jobs:
               (output/'runtime-stop.json').write_text(json.dumps(report,indent=2))
               print(json.dumps(report,indent=2))
           PY
+      - name: Capture runner memory and remaining processes
+        if: always()
+        run: |
+          mkdir -p build/github-ui-evidence
+          { date -u; free -m; df -h /; ps -eo pid,ppid,pgid,rss,%cpu,args --sort=-rss | sed -n '1,31p'; } > build/github-ui-evidence/runner-state.txt
+          for file in /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.max; do
+            if [[ -f "$file" ]]; then cat "$file" >> build/github-ui-evidence/runner-memory.txt; fi
+          done
       - name: Upload selection reports result JSON and failure traces
         if: always()
         uses: actions/upload-artifact@v6
