@@ -90,7 +90,11 @@ function expectBlob(result: Awaited<ReturnType<typeof storedBlob>>, text: string
 
 test('default persistent page stays alive and retains a real PDF Blob across reload', async ({ page, context, browserName }) => {
   expect(browserName).toBe('webkit');
-  expect(context.pages()).toEqual([page]);
+  const guardian = context.pages()[0];
+  expect(guardian).not.toBe(page);
+  expect(guardian.url()).toBe('about:blank');
+  expect(guardian.isClosed()).toBe(false);
+  expect(context.pages()).toEqual([guardian, page]);
   expect(page.isClosed()).toBe(false);
   await openLocalPage(context, page);
   const text = '%PDF-1.7\nDefault persistent profile\n';
@@ -98,7 +102,9 @@ test('default persistent page stays alive and retains a real PDF Blob across rel
   const reloaded = await page.reload();
   expect(reloaded?.status()).toBe(200);
   expectBlob(await storedBlob(page, 'document'), text);
-  expect(context.pages()).toEqual([page]);
+  expect(context.pages()).toEqual([guardian, page]);
+  expect(guardian.url()).toBe('about:blank');
+  expect(guardian.isClosed()).toBe(false);
   expect(page.isClosed()).toBe(false);
 });
 
@@ -108,10 +114,16 @@ test('explicit persistent profiles isolate cookies and real PDF Blobs and remain
   const first = await appBrowserContext({ viewport: { width: 375, height: 844 }, serviceWorkers: 'block' });
   const second = await appBrowserContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   expect(first).not.toBe(second);
-  const firstPage = first.pages()[0] ?? await first.newPage();
-  const secondPage = second.pages()[0] ?? await second.newPage();
-  expect(first.pages()).toEqual([firstPage]);
-  expect(second.pages()).toEqual([secondPage]);
+  const firstGuardian = first.pages()[0];
+  const secondGuardian = second.pages()[0];
+  const firstPage = await first.newPage();
+  const secondPage = await second.newPage();
+  expect(first.pages()).toEqual([firstGuardian, firstPage]);
+  expect(second.pages()).toEqual([secondGuardian, secondPage]);
+  expect(firstGuardian.url()).toBe('about:blank');
+  expect(secondGuardian.url()).toBe('about:blank');
+  expect(firstGuardian.isClosed()).toBe(false);
+  expect(secondGuardian.isClosed()).toBe(false);
   await openLocalPage(first, firstPage);
   await openLocalPage(second, secondPage);
   await first.addCookies([{ name: 'smoke-profile', value: 'first', url: origin, sameSite: 'Lax' }]);
@@ -129,4 +141,32 @@ test('explicit persistent profiles isolate cookies and real PDF Blobs and remain
   expect((await second.cookies(origin)).find(cookie => cookie.name === 'smoke-profile')?.value).toBe('second');
   expect(firstPage.isClosed()).toBe(false);
   expect(secondPage.isClosed()).toBe(false);
+  expect(firstGuardian.url()).toBe('about:blank');
+  expect(secondGuardian.url()).toBe('about:blank');
+  expect(firstGuardian.isClosed()).toBe(false);
+  expect(secondGuardian.isClosed()).toBe(false);
+});
+
+test('closing the app page preserves its guardian and a real PDF Blob in a newly opened page', async ({ page, context, browserName }) => {
+  expect(browserName).toBe('webkit');
+  const guardian = context.pages()[0];
+  expect(guardian).not.toBe(page);
+  expect(context.pages()).toEqual([guardian, page]);
+  expect(guardian.url()).toBe('about:blank');
+  expect(guardian.isClosed()).toBe(false);
+  await openLocalPage(context, page);
+  const text = '%PDF-1.7\nClosed app page retained this document\n';
+  expectBlob(await storedBlob(page, 'closed-page-document', text), text);
+  await page.close();
+  expect(page.isClosed()).toBe(true);
+  expect(context.pages()).toEqual([guardian]);
+  expect(guardian.url()).toBe('about:blank');
+  expect(guardian.isClosed()).toBe(false);
+  const reopened = await context.newPage();
+  expect(context.pages()).toEqual([guardian, reopened]);
+  await openLocalPage(context, reopened);
+  expectBlob(await storedBlob(reopened, 'closed-page-document'), text);
+  expect(reopened.isClosed()).toBe(false);
+  expect(guardian.url()).toBe('about:blank');
+  expect(guardian.isClosed()).toBe(false);
 });
