@@ -1,0 +1,115 @@
+name: WebKit persistent context lifecycle smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/webkit-context-smoke.yml']
+permissions:
+  contents: read
+concurrency:
+  group: webkit-context-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    name: Two real persistent WebKit context cases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      DO_NOT_TRACK: '1'
+      WRANGLER_SEND_METRICS: 'false'
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    steps:
+      - name: Check out QA harness
+        uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Check out immutable application baseline
+        uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply the exact source snapshot without building
+        run: |
+          set -euo pipefail
+          echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | sha256sum -c -
+          python3 ../harness/apply-current.py "$PWD"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install locked packages and the existing WebKit runtime
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps webkit
+      - name: Verify and stage only the context fixture and two smoke cases
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          source=pathlib.Path('../harness').resolve()
+          app=pathlib.Path('.').resolve()
+          expected={
+            'webkit-persistent-fixtures.ts':('tests/e2e/helpers/webkit-persistent-fixtures.ts','848e215fb194cafb1eb424d084febbdef38c5a496328a4a11779b680b6f5496a'),
+            'github-persistent-smoke.spec.ts':('tests/e2e/github-persistent-smoke.spec.ts','ee2764857300cbe34d69e54e6e6bb9a7774d218f6252eb940a019be170aa4fcd'),
+            'github-persistent-smoke.config.ts':('tests/e2e/github-persistent-smoke.config.ts','03085725947915b327eee8cb09675f9068244643e93bbf9c9b3d7518826d456a'),
+          }
+          pending=[]
+          for name,(relative,digest) in expected.items():
+              data=(source/name).read_bytes()
+              assert hashlib.sha256(data).hexdigest()==digest,name
+              target=app/relative
+              assert target.resolve().is_relative_to(app)
+              pending.append((target,data))
+          for target,data in pending:
+              target.parent.mkdir(parents=True,exist_ok=True)
+              target.write_bytes(data)
+          output=app/'qa-evidence/webkit-persistent-smoke'
+          output.mkdir(parents=True,exist_ok=True)
+          (output/'staging.json').write_text(json.dumps({'fixtureSha256':expected['webkit-persistent-fixtures.ts'][1],'smokeCases':2,'productionApiRequests':0,'appBuild':False,'d1':False},indent=2)+'\n')
+          PY
+      - name: Run both real persistent WebKit smoke cases
+        run: npx playwright test --config tests/e2e/github-persistent-smoke.config.ts
+      - name: Require exactly two passes with no failures skips retries or flaky results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          output=pathlib.Path('qa-evidence/webkit-persistent-smoke')
+          report=output/'results.json'
+          data=json.loads(report.read_text()) if report.exists() else {}
+          cases=[]
+          def walk(suites):
+              for suite in suites:
+                  for spec in suite.get('specs',[]):
+                      cases.extend(spec.get('tests',[]))
+                  walk(suite.get('suites',[]))
+          walk(data.get('suites',[]))
+          stats=data.get('stats',{})
+          valid=(len(cases)==2 and stats.get('expected')==2 and stats.get('unexpected')==0
+            and stats.get('skipped')==0 and stats.get('flaky')==0 and not data.get('errors')
+            and all(case.get('expectedStatus')=='passed' and len(case.get('results',[]))==1
+              and case['results'][0].get('status')=='passed' and case['results'][0].get('retry',0)==0 for case in cases))
+          summary={'gate':'PASSED' if valid else 'FAILED','collected':len(cases),'stats':stats,
+            'tests':[{'status':case.get('status'),'results':[r.get('status') for r in case.get('results',[])]} for case in cases]}
+          output.mkdir(parents=True,exist_ok=True)
+          (output/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,indent=2))
+          assert valid,'Persistent context smoke requires exactly 2 passed, 0 failed, 0 skipped, 0 flaky, 0 retries'
+          PY
+      - name: Upload lifecycle Blob IDB and strict smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: webkit-context-smoke-${{ github.run_id }}
+          path: app/qa-evidence/webkit-persistent-smoke/
+          retention-days: 7
+          if-no-files-found: error
