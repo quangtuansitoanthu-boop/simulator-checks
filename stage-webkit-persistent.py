@@ -44,7 +44,8 @@ for (const name of names) {
   const constructionRanges = [];
   const normalized = name.replaceAll('\\', '/');
   const expected = normalized.endsWith('/browser-compatibility.spec.ts') ? 2
-    : normalized.endsWith('/offline-content-index.spec.ts') ? 1 : 0;
+    : normalized.endsWith('/offline-content-index.spec.ts')
+      || normalized.endsWith('/talk-catalog-session.spec.ts') ? 1 : 0;
   const byte = offset => Buffer.byteLength(text.slice(0, offset));
   function visit(node) {
     if (ts.isStringLiteral(node) && node.text === '@playwright/test') {
@@ -134,8 +135,8 @@ for item in parsed:
                     'transformations': list(reversed(transformations))})
     pending.append((path, before, after))
 assert changes, 'No Playwright imports were found'
-assert sum(t['kind'] == 'context-constructor' for c in changes for t in c['transformations']) == 3
-assert sum(t['kind'] == 'fixture-parameter' for c in changes for t in c['transformations']) == 3
+assert sum(t['kind'] == 'context-constructor' for c in changes for t in c['transformations']) == 4
+assert sum(t['kind'] == 'fixture-parameter' for c in changes for t in c['transformations']) == 4
 template = TEMPLATE.read_bytes()
 proof = {'mode': 'dry-run' if ARGS.dry_run else 'CI_STAGED',
          'scope': 'WebKit CI app copy only; Chromium source matrix unchanged',
@@ -143,7 +144,7 @@ proof = {'mode': 'dry-run' if ARGS.dry_run else 'CI_STAGED',
          'fixtureBytes': len(template), 'fixtureSha256': sha(template),
          'files': len(changes),
          'moduleSpecifiers': sum(t['kind'] == 'module-specifier' for c in changes for t in c['transformations']),
-         'explicitContextConstructors': 3, 'explicitFixtureParameters': 3,
+         'explicitContextConstructors': 4, 'explicitFixtureParameters': 4,
          'assertionsUnchanged': True, 'onlyImportsAndContextSetupChanged': True,
          'otherExplicitBrowserNewContextUnchanged': True, 'changes': changes}
 if not ARGS.dry_run:

@@ -101,7 +101,9 @@ try {
     await expect(page.getByRole('link', { name: 'Tu tập Phật pháp — Trang chủ', exact: true })).toBeVisible();
     const later = page.getByRole('button', { name: 'Để sau', exact: true }).filter({ visible: true });
     if (await later.count()) await later.first().click();
-    await expect(page.getByText('LỊCH PHẬT GIÁO', { exact: true })).toBeVisible();
+    const calendar = page.getByRole('region', { name: 'Lịch Phật giáo', exact: true });
+    await expect(calendar).toBeVisible();
+    await expect(calendar.getByText('Lịch Phật giáo', { exact: true })).toBeVisible();
   });
   await flow('02-library-search-reading-font', async () => {
     await nav('Kinh sách');
