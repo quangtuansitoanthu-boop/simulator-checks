@@ -1,0 +1,18 @@
+{
+  "baseRunnerSha256": "5506d012636f3bd0b5726503ab0bc1271d9462659997fd2cb9573929ac68fc3b",
+  "diagnosticRunnerSha256": "be9d849eaa9b659ce1cad7c5882072cd4ad3416070598bb3c0ff0b93a7006220",
+  "bytes": 22168,
+  "reconstructedBaseByteIdentical": true,
+  "scope": "one imports addition, one diagnostic function, one finally call; XCTest/timeout/fresh-install/result methods unchanged",
+  "collectorSha256": "c7d691f17b615c6501ebe31a2181b66e78ffdcb5e206b06d56ef82e4ad8a3a1d",
+  "imports": "import datetime\nimport re\nimport selectors\n",
+  "call": "        collect_notification_os_log(args, case_dir, record)\n",
+  "processes": [
+    "App",
+    "usernotificationsd"
+  ],
+  "queryTimeoutSeconds": 45,
+  "maxRawMemoryAndSanitizedFileBytes": 262144,
+  "newProductHooks": false,
+  "rawMessagesSaved": false
+}

@@ -1,6 +1,9 @@
 """Run every native iOS case in one group against matching, prebuilt products."""
 import argparse
 import hashlib
+import datetime
+import re
+import selectors
 import json
 import os
 from pathlib import Path
@@ -157,6 +160,150 @@ def collect_qa_events(args, case_dir, record):
     record["evidenceWarnings"] = warnings
 
 
+# BEGIN CI_ONLY_NOTIFICATION_LOG_DIAGNOSTIC
+
+def collect_notification_os_log(args, case_dir, record):
+    """Read this synthetic guest case's OS log without changing XCTest or permissions."""
+    if os.environ.get("TUTAM_QA_NOTIFICATION_LOGS") != "1":
+        return
+    evidence = {"status": "unavailable", "diagnosticOnly": True,
+                "rawMessagesSaved": False, "byteLimit": 256 * 1024,
+                "queryTimeoutSeconds": 45}
+    warnings = list(record.get("evidenceWarnings", []))
+    process = None
+    selector = None
+    try:
+        workspace = Path(os.environ.get("GITHUB_WORKSPACE", "")).resolve(strict=True)
+        expected_case = "NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence"
+        if (os.environ.get("GITHUB_ACTIONS") != "true"
+                or os.environ.get("GITHUB_REPOSITORY") != "quangtuansitoanthu-boop/simulator-checks"
+                or os.environ.get("TUTAM_QA_HOSTS_ISOLATED") != "1"
+                or os.environ.get("IOS_RUNTIME") != "27.0"
+                or record.get("identifier") != expected_case
+                or Path.cwd().resolve() != workspace / "app"
+                or not re.fullmatch(r"[0-9A-Fa-f-]{36}", args.simulator)
+                or not case_dir.resolve(strict=True).is_relative_to(workspace / "app/build/release-evidence")):
+            raise RuntimeError("scope-guard")
+        if record.get("freshInstallCompleted") is not True:
+            evidence["status"] = "not-installed"
+            return
+        started, finished = record["startedAt"], record["finishedAt"]
+        if not (isinstance(started, (float, int)) and isinstance(finished, (float, int))
+                and 0 <= finished - started <= 1000):
+            raise RuntimeError("invalid-case-window")
+        # log show uses the runner's local wall clock; both boundaries come from this case only.
+        start_text = datetime.datetime.fromtimestamp(started).strftime("%Y-%m-%d %H:%M:%S")
+        end_text = datetime.datetime.fromtimestamp(finished).strftime("%Y-%m-%d %H:%M:%S")
+        predicate = '(process == "App" OR process == "usernotificationsd") AND (eventMessage CONTAINS[c] "notification" OR eventMessage CONTAINS[c] "authorization" OR eventMessage CONTAINS[c] "permission")'
+        command = ["xcrun", "simctl", "spawn", args.simulator, "log", "show",
+                   "--style", "ndjson", "--start", start_text, "--end", end_text,
+                   "--info", "--debug", "--predicate", predicate]
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        deadline = time.monotonic() + 45
+        chunks, received = [], 0
+        timed_out, truncated = False, False
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            events = selector.select(timeout=min(remaining, 0.2))
+            if not events:
+                if process.poll() is not None:
+                    break
+                continue
+            data = os.read(process.stdout.fileno(), min(8192, 256 * 1024 - received + 1))
+            if not data:
+                break
+            available = 256 * 1024 - received
+            chunks.append(data[:available])
+            received += min(len(data), available)
+            if len(data) > available:
+                truncated = True
+                break
+        if timed_out or truncated:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+        else:
+            process.wait(timeout=max(0.1, min(5, deadline - time.monotonic())))
+        # Never persist raw eventMessage, process paths, bundle lists, payloads, URLs or stderr.
+        # Only fixed operation/state vocabulary and numeric error codes leave this process.
+        operations = ["LocalNotifications", "checkPermissions", "requestPermissions",
+                      "getNotificationSettings", "requestAuthorization", "authorization",
+                      "notificationSettings", "permission", "schedule", "UNUserNotificationCenter",
+                      "connection", "XPC", "completion", "callback", "error", "timeout"]
+        states = ["authorized", "unauthorized", "denied", "notDetermined", "granted",
+                  "provisional", "ephemeral", "pending", "requested", "requesting",
+                  "completed", "failed", "enabled", "disabled", "invalidated", "interrupted"]
+        rows, unparsed = [], 0
+        for line in b"".join(chunks).decode("utf-8", errors="replace").splitlines():
+            try:
+                item = json.loads(line)
+            except ValueError:
+                unparsed += 1
+                continue
+            if not isinstance(item, dict):
+                unparsed += 1
+                continue
+            name = Path(str(item.get("processImagePath", ""))).name
+            if name not in ("App", "usernotificationsd"):
+                continue
+            message = item.get("eventMessage", "")
+            timestamp = item.get("timestamp", "")
+            if not isinstance(message, str) or not isinstance(timestamp, str):
+                continue
+            if not re.fullmatch(r"[0-9 T:.+Z-]{10,40}", timestamp):
+                timestamp = "redacted"
+            found = [word for word in operations if word.casefold() in message.casefold()]
+            state_tokens = [word for word in states if re.search(r"(?<![A-Za-z])" + re.escape(word) + r"(?![A-Za-z])", message, re.I)]
+            row = {"timestamp": timestamp, "process": name, "messageOperations": found,
+                   "messageStates": state_tokens, "containsPrivacyMarker": "<private>" in message,
+                   "matchesGuestBundle": BUNDLE in message,
+                   "errorCodes": re.findall(r"\berror(?:\s*code)?\s*[:= ]\s*(-?\d{1,4})\b", message, re.I)[:8]}
+            rows.append(row)
+        payload = b"".join((json.dumps(row, separators=(",", ":")) + "\n").encode("utf-8") for row in rows)
+        if len(payload) > 256 * 1024:
+            raise RuntimeError("sanitized-output-limit")
+        destination = case_dir / "notification-os-log.sanitized.jsonl"
+        if destination.exists() or destination.is_symlink():
+            raise RuntimeError("refusing-existing-diagnostic")
+        destination.write_bytes(payload)
+        status = "collected" if process.returncode == 0 and not timed_out and not truncated else "partial" if rows else "unavailable"
+        evidence.update({"status": status, "file": destination.name, "bytes": len(payload),
+                         "sha256": hashlib.sha256(payload).hexdigest(), "events": len(rows),
+                         "queryExitCode": process.returncode, "timedOut": timed_out,
+                         "truncated": truncated, "readBytes": received, "unparsedLines": unparsed,
+                         "caseStartedAt": started, "caseFinishedAt": finished,
+                         "processes": ["App", "usernotificationsd"],
+                         "messagePolicy": "fixed operation/state vocabulary only; no raw free text",
+                         "absenceDoesNotProveCallWasNotMade": True})
+        if status != "collected":
+            warnings.append("notification-os-log: " + status)
+    except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as error:
+        evidence["errorType"] = type(error).__name__
+        warnings.append("notification-os-log: unavailable")
+    finally:
+        try:
+            if selector is not None:
+                selector.close()
+            if process is not None:
+                if process.poll() is None:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait(timeout=5)
+                if process.stdout is not None:
+                    process.stdout.close()
+        except (OSError, subprocess.SubprocessError):
+            evidence["cleanupWarning"] = True
+        record["notificationOSLog"] = evidence
+        record["evidenceWarnings"] = warnings
+
+# END CI_ONLY_NOTIFICATION_LOG_DIAGNOSTIC
+
+
 def run_case(args, index, identifier, xctestrun, app):
     case_dir = args.evidence / f"case-{index:02d}"
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -216,6 +363,7 @@ def run_case(args, index, identifier, xctestrun, app):
     finally:
         record["finishedAt"] = time.time()
         collect_qa_events(args, case_dir, record)
+        collect_notification_os_log(args, case_dir, record)
         write_json(record_path, record)
     return collect(args, index, identifier, record)
 
