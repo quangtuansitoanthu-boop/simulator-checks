@@ -1,0 +1,338 @@
+name: Full current Android and iOS native verification
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/full-current-native.yml']
+permissions:
+  contents: read
+concurrency:
+  group: current-native-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  android-build:
+    name: Android build and all 25 JVM tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TUTAM_BUNDLE_SYNCED: '1'
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with: { path: harness, persist-credentials: false }
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply complete frozen source
+        run: |
+          echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | sha256sum -c -
+          python3 ../harness/apply-current.py .
+      - uses: actions/setup-node@v6
+        with: { node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - name: Build bundled Android assets without backend access
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build:mobile -- --platform android
+      - name: Build isolated QA app and run complete JVM suite
+        run: |
+          bash android/gradlew -p android --no-daemon -PqaApplicationIdSuffix=.securityqa :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Require all 25 JVM test cases
+        run: python3 ../harness/android-report.py android/app/build/test-results/testDebugUnitTest 25 build/android-jvm-summary.json
+      - name: Record exact QA package hashes and source
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,os
+          packages=[pathlib.Path('android/app/build/outputs/apk/debug/app-debug.apk'),pathlib.Path('android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk')]
+          result={'manifestSha256':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7','runId':os.environ['GITHUB_RUN_ID'],'package':'vn.quangtu.tutam.securityqa','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in packages}}
+          pathlib.Path('build/android-qa-packages.json').write_text(json.dumps(result,indent=2))
+          PY
+      - name: Upload one QA app, instrumentation package and test evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-qa-packages-${{ github.run_id }}
+          path: |
+            app/android/app/build/outputs/apk/debug/app-debug.apk
+            app/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            app/android/app/build/test-results/testDebugUnitTest/*.xml
+            app/build/android-jvm-summary.json
+            app/build/android-qa-packages.json
+          retention-days: 7
+          if-no-files-found: error
+
+  ios-build:
+    name: Build current iOS ${{ matrix.platform.ios }} products once
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        platform:
+          - ios: '18.5'
+            runner: macos-15
+            xcode: /Applications/Xcode_26.3.app/Contents/Developer
+          - ios: '27.0'
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.1.app/Contents/Developer
+    env:
+      DEVELOPER_DIR: ${{ matrix.platform.xcode }}
+      IOS_RUNTIME: ${{ matrix.platform.ios }}
+      MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply exact current source
+        run: |
+          set -euo pipefail
+          python3 -c "import hashlib,os,pathlib; p=pathlib.Path('../harness/mobile-current-manifest.json'); assert hashlib.sha256(p.read_bytes()).hexdigest()==os.environ['MOBILE_SOURCE_MANIFEST_SHA256'], 'Current source manifest mismatch'"
+          python3 ../harness/apply-current.py .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Build iOS web assets and native dependencies
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          xcodebuild -version | tee build/release-evidence/xcode-version.txt
+          npm ci
+          npm run build:mobile -- --platform ios
+      - name: Verify production host isolation
+        run: python3 ../harness/ios-isolate.py enable
+      - name: Select and boot an existing matching iPhone
+        run: |
+          set -euo pipefail
+          test "$TUTAM_QA_HOSTS_ISOLATED" = 1
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,re,sys; d=json.load(sys.stdin)["devices"]; v=re.escape(os.environ["IOS_RUNTIME"].replace(".","-")); matches=[x for k in sorted(d) if re.search(r"\.iOS-"+v+r"(?:-|$)",k) for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]]; assert matches,"No existing simulator for requested runtime"; print(matches[0]["udid"])')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          if ! xcrun simctl list devices booted | grep -Fq "$device"; then xcrun simctl boot "$device"; fi
+          xcrun simctl bootstatus "$device" -b
+      - name: Build app plugins and all UI tests once
+        run: |
+          set -euo pipefail
+          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+            -derivedDataPath build/ios-simulator CODE_SIGNING_ALLOWED=NO build-for-testing \
+            > build/release-evidence/build-for-testing.log 2>&1
+      - name: Package complete Products with executable permissions
+        run: |
+          set -euo pipefail
+          products=build/ios-simulator/Build/Products
+          test -d "$products/Debug-iphonesimulator/App.app"
+          test -d "$products/Debug-iphonesimulator/AppUITests-Runner.app"
+          test "$(find "$products" -maxdepth 1 -name '*.xctestrun' | wc -l | tr -d ' ')" = 1
+          mkdir -p build/shared-products
+          tar -czf build/shared-products/UITestProducts.tar.gz -C build/ios-simulator/Build Products
+          cp ../harness/mobile-current-manifest.json build/shared-products/source-manifest.json
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path('build/shared-products')
+          archive=root/'UITestProducts.tar.gz'
+          metadata={'ios':os.environ['IOS_RUNTIME'],'manifestSha256':os.environ['MOBILE_SOURCE_MANIFEST_SHA256'],
+                    'archiveSha256':hashlib.sha256(archive.read_bytes()).hexdigest(),
+                    'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT']}
+          (root/'products-metadata.json').write_text(json.dumps(metadata,indent=2))
+          PY
+      - name: Upload reusable Products for this OS
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-current-products-${{ matrix.platform.ios }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/shared-products/
+          retention-days: 3
+          if-no-files-found: error
+      - name: Stop simulator before restoring resolution
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            state=$(xcrun simctl list devices -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; print(next(x["state"] for v in d.values() for x in v if x["udid"]==os.environ["TUTAM_QA_SIMULATOR"]))')
+            if [[ "$state" != Shutdown ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR"; fi
+          fi
+          python3 ../harness/ios-isolate.py restore
+      - name: Upload build evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-current-build-evidence-${{ matrix.platform.ios }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/release-evidence/
+          if-no-files-found: warn
+
+  ios-cases:
+    name: iOS ${{ matrix.platform.ios }} ${{ matrix.group }}
+    needs: ios-build
+    if: ${{ always() && !cancelled() }}
+    runs-on: ${{ matrix.platform.runner }}
+    # Five cases each capped at 750s, plus installation and readable export.
+    timeout-minutes: 85
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        platform:
+          - ios: '18.5'
+            runner: macos-15
+            xcode: /Applications/Xcode_26.3.app/Contents/Developer
+          - ios: '27.0'
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.1.app/Contents/Developer
+        group: [smoke, extended, personal, snapshot]
+    env:
+      DEVELOPER_DIR: ${{ matrix.platform.xcode }}
+      IOS_RUNTIME: ${{ matrix.platform.ios }}
+      MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply exact current source
+        run: |
+          set -euo pipefail
+          python3 -c "import hashlib,os,pathlib; p=pathlib.Path('../harness/mobile-current-manifest.json'); assert hashlib.sha256(p.read_bytes()).hexdigest()==os.environ['MOBILE_SOURCE_MANIFEST_SHA256'], 'Current source manifest mismatch'"
+          python3 ../harness/apply-current.py .
+      - name: Download matching app runner and xctestrun
+        uses: actions/download-artifact@v6
+        with:
+          name: ios-current-products-${{ matrix.platform.ios }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-prebuilt
+      - name: Verify matching Products and restore full tree
+        run: |
+          set -euo pipefail
+          cmp ../harness/mobile-current-manifest.json ../ios-prebuilt/source-manifest.json
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path('../ios-prebuilt')
+          metadata=json.loads((root/'products-metadata.json').read_text())
+          assert metadata['manifestSha256']==os.environ['MOBILE_SOURCE_MANIFEST_SHA256']
+          assert metadata['ios']==os.environ['IOS_RUNTIME']
+          assert metadata['workflowRunId']==os.environ['GITHUB_RUN_ID']
+          assert metadata['workflowRunAttempt']==os.environ['GITHUB_RUN_ATTEMPT']
+          assert hashlib.sha256((root/'UITestProducts.tar.gz').read_bytes()).hexdigest()==metadata['archiveSha256']
+          PY
+          mkdir -p build/ios-simulator/Build
+          tar -xzf ../ios-prebuilt/UITestProducts.tar.gz -C build/ios-simulator/Build
+      - name: Verify production host isolation
+        run: python3 ../harness/ios-isolate.py enable
+      - name: Select and boot an existing matching iPhone
+        run: |
+          set -euo pipefail
+          test "$TUTAM_QA_HOSTS_ISOLATED" = 1
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,re,sys; d=json.load(sys.stdin)["devices"]; v=re.escape(os.environ["IOS_RUNTIME"].replace(".","-")); matches=[x for k in sorted(d) if re.search(r"\.iOS-"+v+r"(?:-|$)",k) for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]]; assert matches,"No existing simulator for requested runtime"; print(matches[0]["udid"])')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          if ! xcrun simctl list devices booted | grep -Fq "$device"; then xcrun simctl boot "$device"; fi
+          xcrun simctl bootstatus "$device" -b
+      - name: Run exact native group on fresh per-case installs
+        run: python3 ../harness/run-ios-cases.py --group '${{ matrix.group }}'
+      - name: Export readable evidence and enforce exact counts
+        if: always()
+        run: python3 ../harness/run-ios-cases.py --group '${{ matrix.group }}' --collect-only
+      - name: Stop simulator before restoring resolution
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            state=$(xcrun simctl list devices -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; print(next(x["state"] for v in d.values() for x in v if x["udid"]==os.environ["TUTAM_QA_SIMULATOR"]))')
+            if [[ "$state" != Shutdown ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR"; fi
+          fi
+          python3 ../harness/ios-isolate.py restore
+      - name: Upload readable native evidence and raw results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-current-evidence-${{ matrix.platform.ios }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/release-evidence/
+          retention-days: 7
+          if-no-files-found: error
+
+  ios-gate:
+    name: Require all 26 current iOS executions
+    needs: [ios-build, ios-cases]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+      IOS_BUILD_RESULT: ${{ needs.ios-build.result }}
+      IOS_CASES_RESULT: ${{ needs.ios-cases.result }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: ios-current-evidence-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-native-evidence
+      - name: Require every case once on both iOS versions
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,runpy
+          assert os.environ['IOS_BUILD_RESULT']=='success', 'iOS build matrix did not succeed'
+          assert os.environ['IOS_CASES_RESULT']=='success', 'iOS test matrix or cleanup did not succeed'
+          groups=runpy.run_path('harness/run-ios-cases.py')['GROUPS']
+          expected={(ios,group) for ios in ('18.5','27.0') for group in groups}
+          summaries=list(pathlib.Path('ios-native-evidence').rglob('native-ui-summary.json'))
+          assert len(summaries)==8, f'Expected8group summaries, got{len(summaries)}'
+          seen=set()
+          total=0
+          for path in summaries:
+              data=json.loads(path.read_text())
+              key=(data['ios'],data['group'])
+              assert key in expected and key not in seen, key
+              assert data['sourceManifestSha256']==os.environ['MOBILE_SOURCE_MANIFEST_SHA256']
+              assert data['workflowRunId']==os.environ['GITHUB_RUN_ID']
+              assert data['workflowRunAttempt']==os.environ['GITHUB_RUN_ATTEMPT']
+              assert data['completeAndPassed'] is True, data
+              identifiers=[record['identifier'] for record in data['records']]
+              assert identifiers==groups[data['group']], identifiers
+              count=len(identifiers)
+              assert data['passedTests']==data['totalTestCount']==data['expectedTests']==count
+              assert data['failedTests']==data['skippedTests']==0
+              seen.add(key)
+              total+=count
+          assert seen==expected and total==26, (seen,total)
+          pathlib.Path('ios-native-evidence/full-ios-gate.json').write_text(json.dumps(
+              {'passedTests':total,'failedTests':0,'skippedTests':0,'groups':8,
+               'sourceManifestSha256':os.environ['MOBILE_SOURCE_MANIFEST_SHA256']},indent=2))
+          print('Verified26native iOS executions,0failures,0skips')
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ios-current-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-native-evidence/full-ios-gate.json
+          if-no-files-found: warn
