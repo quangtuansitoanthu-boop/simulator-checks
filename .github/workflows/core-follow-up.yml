@@ -1,4 +1,4 @@
-name: Full current core with reviewed runtime data
+name: Full current core with reviewed runtime and contract inputs
 on:
   workflow_dispatch:
   push:
@@ -19,6 +19,7 @@ jobs:
       WRANGLER_SEND_METRICS: 'false'
       DO_NOT_TRACK: '1'
       TUTAM_RUNTIME_MANIFEST_SHA256: cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7
+      TUTAM_TEST_SUPPORT_MANIFEST_SHA256: 4075d004b03ea59c44337cb9296713fc22a6e21bfe9d2c2ebd90dd17d97a8e9c
     defaults:
       run:
         working-directory: app
@@ -56,6 +57,11 @@ jobs:
           set -euo pipefail
           echo "$TUTAM_RUNTIME_MANIFEST_SHA256  ../harness/runtime-data-manifest.json" | sha256sum -c -
           python3 ../harness/apply-runtime-data.py .
+      - name: Verify and copy two text contract inputs into the nested app checkout
+        run: |
+          set -euo pipefail
+          echo "$TUTAM_TEST_SUPPORT_MANIFEST_SHA256  ../harness/test-support-manifest.json" | sha256sum -c -
+          python3 ../harness/apply-test-support.py .
       - name: Run every unchanged core assertion
         run: |
           set -euo pipefail
@@ -78,7 +84,8 @@ jobs:
             'collected':passed+failed+skipped+todo,'suites':len(lines),'suiteSummaries':lines,
             'typecheckClean':'svelte-check found 0 errors and 0 warnings' in text,
             'sourceManifestSha256':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7',
-            'runtimeManifestSha256':'cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7'}
+            'runtimeManifestSha256':'cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7',
+            'testSupportManifestSha256':'4075d004b03ea59c44337cb9296713fc22a6e21bfe9d2c2ebd90dd17d97a8e9c'}
           valid=(len(lines)==11 and passed+failed+skipped+todo==4333 and failed==0 and todo==0
             and skipped<=3 and passed>=4330 and summary['typecheckClean'])
           summary['gate']='PASSED' if valid else 'FAILED'
