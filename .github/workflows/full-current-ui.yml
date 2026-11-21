@@ -1,0 +1,205 @@
+name: Full current isolated UI and backend verification
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/full-current-ui.yml']
+permissions:
+  contents: read
+concurrency:
+  group: current-ui-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  core:
+    name: Full current core, backend contracts and web build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with: { path: harness, persist-credentials: false }
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply complete frozen source
+        run: |
+          echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | sha256sum -c -
+          python3 ../harness/apply-current.py .
+      - uses: actions/setup-node@v6
+        with: { node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json }
+      - name: Install locked packages
+        run: npm ci --no-audit --no-fund
+      - name: Run all unchanged core assertions
+        run: |
+          set -euo pipefail
+          mkdir -p qa-evidence
+          npm test 2>&1 | tee qa-evidence/core.log
+      - name: Account for all 4333 collected core tests
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,re
+          text=re.sub(r'\x1b\[[0-9;]*[A-Za-z]','',pathlib.Path('qa-evidence/core.log').read_text())
+          lines=re.findall(r'^\s*Tests\s+([^\n]+)',text,re.M)
+          passed=sum(int(re.search(r'(\d+) passed',line).group(1)) for line in lines)
+          skipped=sum(int(match.group(1)) for line in lines if (match:=re.search(r'(\d+) skipped',line)))
+          summary={'passed':passed,'skipped':skipped,'collected':passed+skipped,'suites':len(lines),'sourceManifestSha256':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7'}
+          pathlib.Path('qa-evidence/core-summary.json').write_text(json.dumps(summary,indent=2))
+          print(summary)
+          assert len(lines)==11 and passed+skipped==4333 and skipped<=3 and passed>=4330
+          assert 'svelte-check found 0 errors and 0 warnings' in text
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: core-current-${{ github.run_id }}
+          path: app/qa-evidence/
+          retention-days: 7
+          if-no-files-found: error
+
+  # Merge this single job into jobs:. It expands to 8 UI jobs, max 4 at once.
+  # The separate Linux core job runs npm test; it is not replaced by this matrix.
+  ui:
+    name: UI ${{ matrix.engine }} shard ${{ matrix.shard }}/4
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        engine: [original, webkit]
+        shard: [1, 2, 3, 4]
+    permissions:
+      contents: read
+    env:
+      CI: 'true'
+      TUTAM_E2E_LOCAL_ONLY: '1'
+      TUTAM_E2E_PREBUILT: '1'
+      TUTAM_E2E_RUNTIME_PORT: '8787'
+      TUTAM_E2E_PROXY_PORT: '8799'
+      WRANGLER_SEND_METRICS: 'false'
+      DO_NOT_TRACK: '1'
+      TUTAM_UI_ENGINE: ${{ matrix.engine }}
+      TUTAM_UI_SHARD: ${{ matrix.shard }}
+      TUTAM_UI_SHARDS: '4'
+      TUTAM_EXPECTED_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - name: Check out immutable QA harness
+        uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Check out application baseline
+        uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify manifest and apply exact current source
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,os,pathlib
+          path=pathlib.Path('../harness/mobile-current-manifest.json')
+          assert hashlib.sha256(path.read_bytes()).hexdigest()==os.environ['TUTAM_EXPECTED_MANIFEST_SHA256'],'Current source manifest mismatch'
+          PY
+          python3 ../harness/apply-current.py "$PWD"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install locked packages and both existing browser engines
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium webkit
+      - name: Build Cloudflare application once for this isolated shard
+        run: npm run build
+      - name: Stage artifact config without changing application tests
+        run: |
+          set -euo pipefail
+          mkdir -p build/github-ui-evidence
+          cp ../harness/ui-webkit.config.ts tests/e2e/github-webkit.config.ts
+          if [[ "$TUTAM_UI_ENGINE" == webkit ]]; then
+            echo 'TUTAM_UI_CONFIG=tests/e2e/github-webkit.config.ts' >> "$GITHUB_ENV"
+          else
+            echo 'TUTAM_UI_CONFIG=tests/e2e/playwright.config.ts' >> "$GITHUB_ENV"
+          fi
+      - name: Isolate shared backend hosts for browser Node and local worker traffic
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          hosts.update(re.findall(r'https://([a-z0-9.-]+)',pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()))
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'ui-qa-hosts.backup'
+          assert not backup.exists()
+          original=pathlib.Path('/etc/hosts').read_text();backup.write_text(original)
+          lines=[]
+          for line in original.splitlines():
+              address,_,_=line.partition('#');parts=address.split()
+              if len(parts)>1 and any(host.lower() in hosts for host in parts[1:]):
+                  aliases=[host for host in parts[1:] if host.lower() not in hosts]
+                  if aliases:lines.append(parts[0]+'\t'+' '.join(aliases))
+              else:lines.append(line)
+          for host in sorted(hosts):
+              assert re.fullmatch(r'[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({value[4][0] for value in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(value).is_loopback for value in addresses)
+              proof[host]=addresses
+          pathlib.Path('build/github-ui-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - name: List original WebKit and this shard before executing
+        run: |
+          set -euo pipefail
+          evidence="$PWD/build/github-ui-evidence"
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$evidence/original-list.json" npx playwright test --config tests/e2e/playwright.config.ts --list --reporter=json
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$evidence/webkit-list.json" npx playwright test --config tests/e2e/github-webkit.config.ts --list --reporter=json
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$evidence/shard-list.json" npx playwright test --config "$TUTAM_UI_CONFIG" --shard "$TUTAM_UI_SHARD/$TUTAM_UI_SHARDS" --list --reporter=json
+          python3 ../harness/ui-report-summary.py --mode list --engine "$TUTAM_UI_ENGINE" --shard "$TUTAM_UI_SHARD" --shards "$TUTAM_UI_SHARDS" --evidence build/github-ui-evidence --expected-original 1168
+      - name: Run unchanged selected assertions against fresh local D1 and R2
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/app/build/github-ui-evidence/results.json
+        run: |
+          set -euo pipefail
+          npx playwright test --config "$TUTAM_UI_CONFIG" --shard "$TUTAM_UI_SHARD/$TUTAM_UI_SHARDS" --workers 1 --reporter=line,json
+      - name: Publish counts and fail on unexpected flaky or incomplete execution
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          python3 harness/ui-report-summary.py --mode final --engine "$TUTAM_UI_ENGINE" --shard "$TUTAM_UI_SHARD" --shards "$TUTAM_UI_SHARDS" --evidence app/build/github-ui-evidence --expected-original 1168
+      - name: Upload selection reports result JSON and failure traces
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-${{ matrix.engine }}-${{ matrix.shard }}-of-4-${{ github.run_id }}
+          path: |
+            app/build/github-ui-evidence/
+            app/test-results/
+            app/tests/e2e/test-results/
+            app/playwright-report/
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Restore isolated runner network
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [[ -f "$RUNNER_TEMP/ui-qa-hosts.backup" ]]; then
+            sudo cp "$RUNNER_TEMP/ui-qa-hosts.backup" /etc/hosts
+          fi
