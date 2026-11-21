@@ -1,0 +1,251 @@
+name: iOS 18 Copy passive crash diagnostics
+'on':
+  workflow_dispatch: null
+  push:
+    branches:
+    - codex/full-mobile-audit-20261121
+    paths:
+    - .github/workflows/ios18-copy-diagnostics.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ios18-copy-diagnostics-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  copy:
+    name: Copy only on iOS 18.5 (1 required test; passive diagnostics)
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: b954eb033a2503c360af2cce85e167e418fd5557
+        path: harness
+        persist-credentials: 'false'
+    - uses: actions/checkout@v6
+      with:
+        repository: quangtuansitoanthu-boop/r-8f31b6c2
+        ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+        path: app
+        persist-credentials: 'false'
+    - name: Apply checksummed current local source
+      run: |
+        python3 -c "import hashlib,pathlib; p=pathlib.Path('../harness/manifest.json'); assert hashlib.sha256(p.read_bytes()).hexdigest()=='805ff05ad1aa9638b413ca7c0e2bef9e9f58fe6234f9c9fea6bf9cef0fb4669c', 'Frozen source manifest mismatch'"
+        python3 ../harness/verify-apply.py --app-repo . --transfer-dir ../harness
+    - name: Download matching frozen UI test products
+      uses: actions/download-artifact@v6
+      with:
+        name: ios18-ui-test-products-44866712784-1
+        path: prebuilt
+        run-id: 44866712784
+        repository: ${{ github.repository }}
+        github-token: ${{ github.token }}
+    - name: Verify product source manifest and restore Products
+      run: |
+        set -euo pipefail
+        cmp ../harness/manifest.json ../prebuilt/source-manifest.json
+        mkdir -p build/ios-simulator/Build
+        ditto -x -k ../prebuilt/UITestProducts.zip build/ios-simulator/Build
+        test -d build/ios-simulator/Build/Products/Debug-iphonesimulator/AppUITests-Runner.app
+    - name: Isolate production hosts for native tests
+      run: |
+        set -euo pipefail
+        mkdir -p build/release-evidence
+        python3 - <<'PY'
+        import ipaddress,json,os,pathlib,re,socket,subprocess
+        proxy=subprocess.check_output(['scutil','--proxy'],text=True)
+        assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy)
+        assert not any(v for k,v in os.environ.items() if k.lower() in ('http_proxy','https_proxy','all_proxy'))
+        hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+        text=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+        hosts.update(re.findall(r'https://([a-z0-9.-]+)',text))
+        backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'mobile-qa-hosts.backup'
+        assert not backup.exists()
+        original=pathlib.Path('/etc/hosts').read_text()
+        backup.write_text(original)
+        lines=[]
+        for line in original.splitlines():
+            address,sep,comment=line.partition('#')
+            parts=address.split()
+            if len(parts)>1 and any(h.lower() in hosts for h in parts[1:]):
+                aliases=[h for h in parts[1:] if h.lower() not in hosts]
+                if aliases: lines.append(parts[0]+'\t'+' '.join(aliases))
+            else: lines.append(line)
+        for host in sorted(hosts):
+            assert re.fullmatch(r'[a-z0-9.-]+',host)
+            lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+        subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+        subprocess.run(['sudo','dscacheutil','-flushcache'],check=True)
+        proof={}
+        for host in sorted(hosts):
+            addresses=sorted({x[4][0] for x in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+            assert addresses and all(ipaddress.ip_address(x).is_loopback for x in addresses)
+            proof[host]=addresses
+        pathlib.Path('build/release-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+        PY
+    - name: Select and boot an existing simulator
+      env:
+        IOS_RUNTIME: '18.5'
+      run: |
+        set -euo pipefail
+        device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; v=os.environ["IOS_RUNTIME"].replace(".","-"); print(next(x["udid"] for k in sorted(d) if ".iOS-"+v in k for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]))')
+        echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+        xcrun simctl boot "$device"
+        xcrun simctl bootstatus "$device" -b
+    - name: Run original Copy case with passive OS log and bounded screenshots
+      run: |
+        set -euo pipefail
+        mkdir -p build/release-evidence build/readable-evidence/screenshots
+        python3 -c 'import time;print(time.time())' > build/release-evidence/diagnostic-start.txt
+        cat > "$RUNNER_TEMP/copy-screenshot-loop.py" <<'PY'
+        import json,os,pathlib,subprocess,time
+        root=pathlib.Path('build/readable-evidence/screenshots')
+        stop=pathlib.Path('build/release-evidence/capture-stop')
+        device=os.environ['TUTAM_QA_SIMULATOR']
+        inventory={'intervalSeconds':3,'maximumAttempts':60,'frames':[],'stateOnFirstFailure':None}
+        try:
+            for index in range(1,61):
+                if stop.exists():break
+                started=time.monotonic()
+                target=root/f'frame-{index:02d}.png'
+                record={'index':index,'timeUTC':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}
+                try:
+                    result=subprocess.run(['xcrun','simctl','io',device,'screenshot',str(target)],text=True,capture_output=True,timeout=8)
+                    record.update({'returnCode':result.returncode,'stderr':result.stderr[-1000:],'exists':target.is_file()})
+                except subprocess.TimeoutExpired:
+                    record.update({'returnCode':None,'error':'screenshot command exceeded 8 seconds'})
+                inventory['frames'].append(record)
+                if record.get('returnCode')!=0 and inventory['stateOnFirstFailure'] is None:
+                    try:
+                        result=subprocess.run(['xcrun','simctl','list','devices','-j'],text=True,capture_output=True,timeout=8)
+                        inventory['stateOnFirstFailure']={'returnCode':result.returncode,'stdout':result.stdout,'stderr':result.stderr}
+                    except subprocess.TimeoutExpired:inventory['stateOnFirstFailure']={'error':'simulator state command exceeded 8 seconds'}
+                time.sleep(max(0,3-(time.monotonic()-started)))
+        finally:
+            (root/'screenshot-inventory.json').write_text(json.dumps(inventory,indent=2))
+        PY
+        python3 "$RUNNER_TEMP/copy-screenshot-loop.py" > build/release-evidence/screenshot-loop.txt 2>&1 &
+        screenshot_pid=$!
+        predicate='process == "App" OR process CONTAINS[c] "WebKit" OR process CONTAINS[c] "WebContent" OR process CONTAINS[c] "AppUITests" OR process CONTAINS[c] "testmanagerd" OR subsystem BEGINSWITH[c] "com.apple.WebKit"'
+        xcrun simctl spawn "$TUTAM_QA_SIMULATOR" log stream --style compact --level debug --predicate "$predicate" > build/release-evidence/simulator-app-webkit-testmanagerd.txt 2>&1 &
+        simulator_log_pid=$!
+        /usr/bin/log stream --style compact --level debug --predicate 'process CONTAINS[c] "testmanagerd" OR process CONTAINS[c] "CoreSimulator"' > build/release-evidence/host-testmanagerd.txt 2>&1 &
+        host_log_pid=$!
+        capture_active=1
+        diagnostic_status=0
+        stop_capture() {
+          if [[ "$capture_active" == 0 ]]; then return; fi
+          capture_active=0
+          touch build/release-evidence/capture-stop
+          wait "$screenshot_pid" || diagnostic_status=1
+          kill -TERM "$simulator_log_pid" "$host_log_pid" 2>/dev/null || true
+          wait "$simulator_log_pid" 2>/dev/null || true
+          wait "$host_log_pid" 2>/dev/null || true
+        }
+        trap stop_capture EXIT
+        sleep 1
+        kill -0 "$simulator_log_pid" || diagnostic_status=1
+        kill -0 "$host_log_pid" || diagnostic_status=1
+        products=build/ios-simulator/Build/Products
+        test "$(find "$products" -maxdepth 1 -name '*.xctestrun' | wc -l | tr -d ' ')" = 1
+        xctestrun=$(find "$products" -maxdepth 1 -name '*.xctestrun')
+        xcrun simctl uninstall "$TUTAM_QA_SIMULATOR" vn.quangtu.tutam || true
+        status=0
+        xcodebuild -xctestrun "$xctestrun" \
+          -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+          -resultBundlePath build/release-evidence/NativeAudit-1.xcresult \
+          -parallel-testing-enabled NO -test-timeouts-enabled YES \
+          -default-test-execution-time-allowance 750 -maximum-test-execution-time-allowance 750 \
+          -only-testing:AppUITests/NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost \
+          test-without-building 2>&1 | tee build/release-evidence/native-test-1.txt || status=$?
+        kill -0 "$simulator_log_pid" 2>/dev/null || diagnostic_status=1
+        kill -0 "$host_log_pid" 2>/dev/null || diagnostic_status=1
+        stop_capture
+        printf '%s\n' "$status" > build/release-evidence/test-exit-code.txt
+        printf '%s\n' "$diagnostic_status" > build/release-evidence/capture-exit-code.txt
+        if [[ "$status" != 0 ]]; then exit "$status"; fi
+        exit "$diagnostic_status"
+    - name: Collect only new App WebKit and UI Runner crash reports
+      if: always()
+      run: |
+        python3 - <<'PY'
+        import json,os,pathlib,shutil,sys
+        output=pathlib.Path('build/readable-evidence/crash-reports');output.mkdir(parents=True,exist_ok=True)
+        marker=pathlib.Path('build/release-evidence/diagnostic-start.txt')
+        started=float(marker.read_text()) if marker.exists() else None
+        device=os.environ.get('TUTAM_QA_SIMULATOR','')
+        roots=[pathlib.Path.home()/'Library/Logs/DiagnosticReports']
+        if device:
+            data=pathlib.Path.home()/'Library/Developer/CoreSimulator/Devices'/device/'data'
+            roots.extend([data/'Library/Logs/CrashReporter',data/'Library/Logs/DiagnosticReports'])
+        report={'startedUnix':started,'roots':[str(p) for p in roots],'allowedProcesses':['App','AppUITests-Runner','WebKit/WebContent'],'copied':[],'errors':[]}
+        if started is None:report['errors'].append('The test diagnostic marker is missing; no old reports were copied')
+        else:
+            for root_index,root in enumerate(roots):
+                if not root.is_dir():continue
+                for p in root.rglob('*.ips'):
+                    if not p.name.startswith(('App-','AppUITests-Runner','com.apple.WebKit.','WebKit','WebContent')):continue
+                    try:
+                        if p.stat().st_mtime<started:continue
+                        target=output/f'root-{root_index}'/p.relative_to(root)
+                        target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(p,target)
+                        report['copied'].append({'source':str(p),'path':str(target),'modifiedUnix':p.stat().st_mtime})
+                    except OSError as error:report['errors'].append(str(error))
+        (output/'crash-inventory.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
+        if report['errors']:sys.exit('Crash report capture was incomplete')
+        PY
+    - name: Require exactly one pass and no failures or skips
+      if: always()
+      run: |
+        python3 - <<'PY'
+        import json,pathlib,subprocess
+        root=pathlib.Path('build/release-evidence')
+        results=list(root.glob('NativeAudit-*.xcresult'))
+        assert len(results)==1,(len(results),1)
+        data=json.loads(subprocess.check_output(['xcrun','xcresulttool','get','test-results','summary','--path',str(results[0])],text=True))
+        (root/'native-summary.json').write_text(json.dumps(data,indent=2))
+        assert data['totalTestCount']==1 and data['passedTests']==1 and data['failedTests']==0 and data['skippedTests']==0,data
+        print('Verified exactly one native case, one pass, zero failures, zero skips')
+        PY
+    - name: Export xcresult independently of simulator screenshot success
+      if: always()
+      run: |
+        set -euo pipefail
+        mkdir -p build/readable-evidence/NativeAudit-1/attachments
+        for item in native-test-1.txt simulator-app-webkit-testmanagerd.txt host-testmanagerd.txt screenshot-loop.txt host-isolation.json native-summary.json diagnostic-start.txt test-exit-code.txt capture-exit-code.txt; do
+          if [[ -f "build/release-evidence/$item" ]]; then cp "build/release-evidence/$item" "build/readable-evidence/$item"; fi
+        done
+        result=build/release-evidence/NativeAudit-1.xcresult
+        status=0
+        xcrun xcresulttool get test-results summary --path "$result" > build/readable-evidence/NativeAudit-1/summary.json || status=$?
+        xcrun xcresulttool export attachments --path "$result" --output-path build/readable-evidence/NativeAudit-1/attachments || status=$?
+        exit "$status"
+    - name: Upload readable diagnostics even when the case or simulator fails
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: ios18-copy-diagnostics-${{ github.run_id }}
+        path: |
+          app/build/readable-evidence/**/*.png
+          app/build/readable-evidence/**/*.txt
+          app/build/readable-evidence/**/*.json
+          app/build/readable-evidence/**/*.ips
+        retention-days: 7
+        if-no-files-found: error
+    - name: Shut down simulator and restore runner network
+      if: always()
+      run: |
+        if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR" || true; fi
+        if [[ -f "$RUNNER_TEMP/mobile-qa-hosts.backup" ]]; then
+          sudo cp "$RUNNER_TEMP/mobile-qa-hosts.backup" /etc/hosts
+          sudo dscacheutil -flushcache
+        fi
