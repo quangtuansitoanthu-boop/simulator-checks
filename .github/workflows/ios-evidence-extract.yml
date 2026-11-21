@@ -1,4 +1,4 @@
-name: Export readable iOS audit evidence
+name: Export readable iOS 18.5 audit evidence
 on:
   workflow_dispatch:
   push:
@@ -9,7 +9,7 @@ permissions:
   actions: read
 jobs:
   export:
-    name: Export existing iOS 27 test attachments
+    name: Export existing iOS 18.5 test attachments
     runs-on: xcode-27
     timeout-minutes: 20
     env:
@@ -27,7 +27,7 @@ jobs:
       - name: Download completed native audit evidence
         uses: actions/download-artifact@v6
         with:
-          name: current-ios-27.0-1
+          name: current-ios-18.5-1
           path: evidence
           run-id: 44849105165
           github-token: ${{ github.token }}
@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p exported
-          for index in 1 2 3; do
+          for index in 1 2 3 4 5; do
             bundle="evidence/NativeAudit-${index}.xcresult"
             output="exported/NativeAudit-${index}"
             test -d "$bundle"
@@ -60,10 +60,10 @@ jobs:
                   continue
               files.append({'path':item.relative_to(root).as_posix(),'bytes':item.stat().st_size})
           summaries=[]
-          for index in (1,2,3):
+          for index in (1,2,3,4,5):
               data=json.loads((root/f'NativeAudit-{index}'/'summary.json').read_text())
               summaries.append({'bundle':index,'passedTests':data['passedTests'],'failedTests':data['failedTests'],'skippedTests':data['skippedTests']})
-          inventory={'sourceRun':44849105165,'sourceArtifact':'current-ios-27.0-1','summaries':summaries,'uploadedFiles':files,'omittedExtensions':omitted}
+          inventory={'sourceRun':44849105165,'sourceArtifact':'current-ios-18.5-1','expectedOriginalTests':10,'availableBundles':5,'summaries':summaries,'uploadedFiles':files,'omittedExtensions':omitted}
           (root/'export-inventory.json').write_text(json.dumps(inventory,indent=2))
           print(json.dumps({'summaries':summaries,'readableFiles':len(files),'omittedExtensions':omitted},indent=2))
           PY
@@ -71,7 +71,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: ios27-audit-readable-evidence
+          name: ios18-audit-readable-evidence
           path: |
             exported/**/*.png
             exported/**/*.jpg
