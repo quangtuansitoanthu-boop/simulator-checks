@@ -1,4 +1,4 @@
-name: Native PNG and copying final follow-up
+name: Native copying selector and keyboard follow-up
 on:
   workflow_dispatch:
   push:
@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: png-follow-up-${{ github.ref }}
+  group: copy-final-follow-up-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   native:
@@ -20,11 +20,6 @@ jobs:
             scenario: AppUITests/NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost
             runner: macos-15
             developer: /Applications/Xcode_26.3.app/Contents/Developer
-          - ios: '27.0'
-            label: PNG
-            scenario: AppUITests/NativeGuestSmokeTests/testQuoteImageUsesNativeSavePickerAndCancelKeepsDialogUsable
-            runner: xcode-27
-            developer: /Applications/Xcode_27.1.app/Contents/Developer
     name: ${{ matrix.label }} on iOS ${{ matrix.ios }} (1 required test)
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -54,10 +49,10 @@ jobs:
           python3 - <<'PY'
           import hashlib,pathlib,subprocess
           patch=pathlib.Path('../harness/ios-png-final.patch')
-          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='412b83ef654817cf55b6bffc6d1ebdd87a053db0eafc84ddfc1264f095efbffd'
+          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='d87e520412a9464e1478e0dcce6e5d8a021134378d9de454a32fd3b3a6c82a68'
           subprocess.run(['git','-c','core.autocrlf=false','apply','--check',str(patch)],check=True)
           subprocess.run(['git','-c','core.autocrlf=false','apply',str(patch)],check=True)
-          expected={'ios/App/App/TuTapBridgeViewController.swift': '7a2a0416bd7255724aa3d85072047edb4b565c5937ad0a2b334db3f32a000e2c', 'ios/App/AppUITests/NativeGuestSmokeTests.swift': '2a9a27cce83372cdda467e36662cf2822d65f926fb1c9bf3ffb9ef2864937021', 'src/lib/components/home/DailyDhammapadaCard.svelte': '11ce404f607c0aa51a582cc12b580e60aa9448a1cdf3d3e7a7c02bcf301fdc63', 'src/lib/components/reader/QuoteCardModal.svelte': '0caf5aac58c55401b54a5693a6eba9560943a7866e7a14c4a27ec4516ed3d05d'}
+          expected={'ios/App/App/TuTapBridgeViewController.swift': '7a2a0416bd7255724aa3d85072047edb4b565c5937ad0a2b334db3f32a000e2c', 'ios/App/AppUITests/NativeGuestSmokeTests.swift': '1669b3d49687383e120ac0a9f551c41f58baf484e0484f23e3d66f268ee7e2aa', 'src/lib/components/home/DailyDhammapadaCard.svelte': '11ce404f607c0aa51a582cc12b580e60aa9448a1cdf3d3e7a7c02bcf301fdc63', 'src/lib/components/reader/QuoteCardModal.svelte': '0caf5aac58c55401b54a5693a6eba9560943a7866e7a14c4a27ec4516ed3d05d'}
           for file,digest in expected.items():
               assert hashlib.sha256(pathlib.Path(file).read_bytes()).hexdigest()==digest,file
           PY
@@ -237,26 +232,6 @@ jobs:
             app/build/readable-evidence/**/*.jpeg
             app/build/readable-evidence/**/*.txt
             app/build/readable-evidence/**/*.json
-          retention-days: 7
-          if-no-files-found: error
-      - name: Package verified-source simulator app for web QA
-        if: always()
-        run: |
-          set -euo pipefail
-          app=build/ios-simulator/Build/Products/Debug-iphonesimulator/App.app
-          test -d "$app"
-          mkdir -p build/simulator-app
-          (cd "$(dirname "$app")" && zip -qr "$GITHUB_WORKSPACE/app/build/simulator-app/App.app.zip" App.app)
-          shasum -a 256 build/simulator-app/App.app.zip > build/simulator-app/App-build-info.txt
-          file "$app/App" >> build/simulator-app/App-build-info.txt
-          xcrun lipo -archs "$app/App" >> build/simulator-app/App-build-info.txt
-          plutil -extract DTPlatformName raw "$app/Info.plist" >> build/simulator-app/App-build-info.txt
-      - name: Upload simulator app for web QA
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: png-follow-up-app-${{ matrix.ios }}-${{ github.run_number }}
-          path: app/build/simulator-app/
           retention-days: 7
           if-no-files-found: error
       - name: Shut down simulator and restore runner network
