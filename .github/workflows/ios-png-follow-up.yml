@@ -1,0 +1,244 @@
+name: PNG follow-up on iOS 18 and 27
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/ios-png-follow-up.yml']
+permissions:
+  contents: read
+concurrency:
+  group: png-follow-up-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ios: '18.5'
+            runner: macos-15
+            developer: /Applications/Xcode_26.3.app/Contents/Developer
+          - ios: '27.0'
+            runner: xcode-27
+            developer: /Applications/Xcode_27.1.app/Contents/Developer
+    name: PNG follow-up only on iOS ${{ matrix.ios }} (1 required test)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: ${{ matrix.developer }}
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Apply checksummed current local source
+        run: python3 ../harness/verify-apply.py --app-repo . --transfer-dir ../harness
+      - name: Apply verified PNG destination test follow-up
+        run: |
+          python3 - <<'PY'
+          import hashlib,pathlib,subprocess
+          patch=pathlib.Path('../harness/ios-png-harness.patch')
+          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='56642bdc369007576b6059c69ae2bfa9b85cdd3200717954b6dc8084a71315d1'
+          subprocess.run(['git','apply','--check',str(patch)],check=True)
+          subprocess.run(['git','apply',str(patch)],check=True)
+          target=pathlib.Path('ios/App/AppUITests/NativeGuestSmokeTests.swift')
+          assert hashlib.sha256(target.read_bytes()).hexdigest()=='dbb9806474038187dc5d131935c4d7a5594ba72b570969f89228d6f3fc8848b4'
+          PY
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Verify Apple toolchain
+        run: |
+          xcodebuild -version
+          pod --version
+      - name: Install locked dependencies and build iOS assets
+        run: |
+          npm ci
+          npm run build:mobile -- --platform ios
+      - name: Isolate production hosts for native tests
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          proxy=subprocess.check_output(['scutil','--proxy'],text=True)
+          assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy)
+          assert not any(v for k,v in os.environ.items() if k.lower() in ('http_proxy','https_proxy','all_proxy'))
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          text=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+          hosts.update(re.findall(r'https://([a-z0-9.-]+)',text))
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'mobile-qa-hosts.backup'
+          assert not backup.exists()
+          original=pathlib.Path('/etc/hosts').read_text()
+          backup.write_text(original)
+          lines=[]
+          for line in original.splitlines():
+              address,sep,comment=line.partition('#')
+              parts=address.split()
+              if len(parts)>1 and any(h.lower() in hosts for h in parts[1:]):
+                  aliases=[h for h in parts[1:] if h.lower() not in hosts]
+                  if aliases: lines.append(parts[0]+'\t'+' '.join(aliases))
+              else: lines.append(line)
+          for host in sorted(hosts):
+              assert re.fullmatch(r'[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          subprocess.run(['sudo','dscacheutil','-flushcache'],check=True)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({x[4][0] for x in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(x).is_loopback for x in addresses)
+              proof[host]=addresses
+          pathlib.Path('build/release-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - name: Select and boot an existing simulator
+        env:
+          IOS_RUNTIME: ${{ matrix.ios }}
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; v=os.environ["IOS_RUNTIME"].replace(".","-"); print(next(x["udid"] for k in sorted(d) if ".iOS-"+v in k for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]))')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+      - name: Build native plugins and UI tests
+        run: |
+          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+            -derivedDataPath build/ios-simulator CODE_SIGNING_ALLOWED=NO build-for-testing
+      - name: Run PNG follow-up on a fresh install and capture OS logs
+        run: |
+          set -euo pipefail
+          xcrun simctl uninstall "$TUTAM_QA_SIMULATOR" vn.quangtu.tutam || true
+          predicate='process == "App" OR process CONTAINS[c] "fileprovider" OR process CONTAINS[c] "DocumentManager" OR subsystem BEGINSWITH[c] "com.apple.FileProvider"'
+          xcrun simctl spawn "$TUTAM_QA_SIMULATOR" log stream --style compact --level debug --predicate "$predicate" > build/release-evidence/native-fileprovider.txt 2>&1 &
+          log_pid=$!
+          stop_logs() {
+            kill -TERM "$log_pid" 2>/dev/null || true
+            wait "$log_pid" 2>/dev/null || true
+          }
+          trap stop_logs EXIT
+          sleep 1
+          kill -0 "$log_pid"
+          status=0
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+            -derivedDataPath build/ios-simulator -resultBundlePath build/release-evidence/NativeAudit-1.xcresult \
+            -parallel-testing-enabled NO -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 750 -maximum-test-execution-time-allowance 750 \
+            -only-testing:AppUITests/NativeGuestSmokeTests/testQuoteImageUsesNativeSavePickerAndCancelKeepsDialogUsable \
+            CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee build/release-evidence/native-test-1.txt || status=1
+          if ! kill -0 "$log_pid" 2>/dev/null; then
+            echo "OS log capture stopped unexpectedly" >&2
+            status=1
+          fi
+          exit "$status"
+      - name: Verify persisted exported PNG in simulator data
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,sys
+          output=pathlib.Path('build/release-evidence')
+          output.mkdir(parents=True,exist_ok=True)
+          device=os.environ.get('TUTAM_QA_SIMULATOR','')
+          root=pathlib.Path.home()/'Library/Developer/CoreSimulator/Devices'/device/'data'
+          result={'pattern':'trich-dan-quangtu-*.png','simulator':device,'scanRoot':str(root),'files':[],'scanErrors':[]}
+          if not device or not root.is_dir():
+              result['scanErrors'].append('Selected simulator data directory is unavailable')
+          else:
+              def onerror(error):
+                  result['scanErrors'].append(str(error))
+              for directory,folders,names in os.walk(root,followlinks=False,onerror=onerror):
+                  for name in names:
+                      if not pathlib.PurePath(name).match(result['pattern']): continue
+                      path=pathlib.Path(directory)/name
+                      try:
+                          relative=path.relative_to(root).as_posix()
+                          with path.open('rb') as stream: signature=stream.read(8)
+                          temporary='/tmp/' in '/'+relative or '/Library/Caches/' in '/'+relative or '/tu-tap-export-' in '/'+relative
+                          result['files'].append({'path':relative,'bytes':path.stat().st_size,'pngSignature':signature==b'\x89PNG\r\n\x1a\n','temporaryOrCache':temporary})
+                      except OSError as error:
+                          result['scanErrors'].append(str(error))
+          result['persistedPNGCount']=sum(item['pngSignature'] and not item['temporaryOrCache'] for item in result['files'])
+          (output/'persisted-png-scan.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          if result['scanErrors'] or result['persistedPNGCount']<1:
+              sys.exit('No verified PNG outside temporary export/cache paths, or simulator data scan was incomplete')
+          PY
+      - name: Require executed tests without failure or skips
+        if: always()
+        env:
+          IOS_RUNTIME: ${{ matrix.ios }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          expected=1  # This job is explicitly a PNG-only follow-up, not full iOS coverage.
+          results=sorted(pathlib.Path('build/release-evidence').glob('NativeAudit-*.xcresult'))
+          assert len(results)==expected,(len(results),expected)
+          summaries=[]
+          for path in results:
+              data=json.loads(subprocess.check_output(['xcrun','xcresulttool','get','test-results','summary','--path',str(path)],text=True))
+              assert data['passedTests']==1 and data['failedTests']==0 and data['skippedTests']==0,data
+              summaries.append(data)
+          pathlib.Path('build/release-evidence/native-summary.json').write_text(json.dumps(summaries,indent=2))
+          print('Verified',len(summaries),'native tests on fresh installs')
+          PY
+      - name: Capture final simulator screenshot
+        if: always()
+        run: |
+          mkdir -p build/release-evidence
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            xcrun simctl io "$TUTAM_QA_SIMULATOR" screenshot build/release-evidence/native-final.png
+          fi
+      - name: Export readable native test evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p build/readable-evidence
+          if [[ -f build/release-evidence/native-final.png ]]; then cp build/release-evidence/native-final.png build/readable-evidence/native-final.png; fi
+          if [[ -f build/release-evidence/host-isolation.json ]]; then cp build/release-evidence/host-isolation.json build/readable-evidence/host-isolation.json; fi
+          for diagnostic in native-fileprovider.txt native-test-1.txt persisted-png-scan.json native-summary.json; do
+            if [[ -f "build/release-evidence/$diagnostic" ]]; then cp "build/release-evidence/$diagnostic" "build/readable-evidence/$diagnostic"; fi
+          done
+          for result in build/release-evidence/NativeAudit-*.xcresult; do
+            [[ -d "$result" ]] || continue
+            label=$(basename "$result" .xcresult)
+            output="build/readable-evidence/$label"
+            mkdir -p "$output/attachments"
+            xcrun xcresulttool get test-results summary --path "$result" > "$output/summary.json"
+            xcrun xcresulttool export attachments --path "$result" --output-path "$output/attachments"
+          done
+      - name: Upload readable native test evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: png-follow-up-readable-${{ matrix.ios }}-${{ github.run_number }}
+          path: |
+            app/build/readable-evidence/**/*.png
+            app/build/readable-evidence/**/*.jpg
+            app/build/readable-evidence/**/*.jpeg
+            app/build/readable-evidence/**/*.txt
+            app/build/readable-evidence/**/*.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Shut down simulator and restore runner network
+        if: always()
+        run: |
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR" || true; fi
+          if [[ -f "$RUNNER_TEMP/mobile-qa-hosts.backup" ]]; then
+            sudo cp "$RUNNER_TEMP/mobile-qa-hosts.backup" /etc/hosts
+            sudo dscacheutil -flushcache
+          fi
