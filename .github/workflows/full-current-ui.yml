@@ -30,6 +30,7 @@ jobs:
       NODE_OPTIONS: --dns-result-order=ipv4first
       TUTAM_E2E_LOCAL_ONLY: '1'
       TUTAM_E2E_PREBUILT: '1'
+      TUTAM_E2E_DEV_API: '1'
       TUTAM_E2E_RUNTIME_PORT: '8787'
       TUTAM_E2E_PROXY_PORT: '8799'
       WRANGLER_SEND_METRICS: 'false'
