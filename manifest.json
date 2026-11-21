@@ -1,20 +1,20 @@
 {
   "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
   "baselineCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
-  "createdAt": "2026-11-21T01:48:58.488Z",
-  "fileCount": 122,
-  "totalSourceBytes": 3091666,
-  "patchBytes": 2282647,
-  "patchSha256": "8f53a2e57b91dc14099ad64860971fa9eb49e83f172fbd76c57ca956f3442566",
-  "compressedBytes": 488467,
-  "compressedSha256": "643387dc9ef241293f4bda3f145d9fcdab313715413e2e9c0dd334fea0054274",
+  "createdAt": "2026-11-21T02:32:07.959Z",
+  "fileCount": 124,
+  "totalSourceBytes": 3101765,
+  "patchBytes": 2290797,
+  "patchSha256": "7eb1b1a0763f3bc8971ec6a016389a33b63f831cca2444e57499f933269dde5b",
+  "compressedBytes": 490826,
+  "compressedSha256": "0e441abe38d6060a726792f6f5e271ccdf3cd2f3cb22f0d78455b915a6c716a5",
   "binaryFiles": [],
   "textEncodedAsBinaryPatch": [
     "src/lib/components/library/ReaderBoundary.svelte",
     "src/routes/ca-nhan/+page.svelte"
   ],
   "sensitiveAdditions": {
-    "scannedFiles": 122,
+    "scannedFiles": 124,
     "patterns": [
       "private-key-block",
       "github-token",
@@ -82,9 +82,9 @@
     {
       "path": "ios/App/AppUITests/NativeGuestSmokeTests.swift",
       "operation": "modify",
-      "bytes": 83709,
-      "sha256": "8121b5b16f8abf2d027cdab6709ed720adae55babd4d60c0235d3d3c6ab1485f",
-      "gitBlobSha1": "4096feaff4b4d80bd0ebc26ae5ba7cb1a878532a",
+      "bytes": 84235,
+      "sha256": "0f5a54128c74633387fda8d7c05f77b4193b7247c8b8a6e4d426ea4eefc1808f",
+      "gitBlobSha1": "af7eb9bec4dfd0cf5c036af733fd071aaf6749ea",
       "baselineBlobSha1": "96286f691e6ca957952083108bb2f09e56907278",
       "baselineSha256": "1f1206e15ed397b432757dacfa1597fc039eb92dbadc37aaa2c93e1e104de71a",
       "crlfCount": 0,
@@ -198,6 +198,17 @@
       "baselineBlobSha1": "01b51dabe3928fbcfa2e8f3661a4b2e5ede3608b",
       "baselineSha256": "90e8bdce2fb9ede281e25397d8f4e9ed34724ec8f3eef8d53ea3d51efdace30b",
       "crlfCount": 167,
+      "binary": false
+    },
+    {
+      "path": "src/lib/browser/pdf-crop.ts",
+      "operation": "modify",
+      "bytes": 5459,
+      "sha256": "b1ae4da9a8350ba643cdeea60479296b1c217602869380a52896fb12fad62609",
+      "gitBlobSha1": "982a7648bf27cf3fc1b748242dd8f0a33b3a849b",
+      "baselineBlobSha1": "3b019d015517bda803079805d418c1afba1af074",
+      "baselineSha256": "256ad8f590cb836613c294839c89d5eecb445a144cb086927f4059b78559adbc",
+      "crlfCount": 0,
       "binary": false
     },
     {
@@ -522,9 +533,9 @@
     {
       "path": "src/lib/components/reader/PdfCanvasReader.svelte",
       "operation": "modify",
-      "bytes": 131560,
-      "sha256": "3ac821f9509ea1af690f57a39ca7b0537df923f957e81d0cadeb4c94a405a489",
-      "gitBlobSha1": "7ce3869f73d4c2741f210d8c9d6cc739a13ebd8a",
+      "bytes": 131732,
+      "sha256": "6f2bac8b4ee43a8b7058aa9cb15c0959e2d1a230d1eac7545ae4c9fd6f23aae6",
+      "gitBlobSha1": "b23f26598446982a6a40ea631982c21276625cbc",
       "baselineBlobSha1": "4995a73c43e1a8c77a78a57eb59d31f04efc9922",
       "baselineSha256": "b75a89340b83cbad1edff7714734853c416cdf33571ea3e55488c53bda3313ad",
       "crlfCount": 0,
@@ -918,12 +929,12 @@
     {
       "path": "tests/component/reader/reader-phase5.test.ts",
       "operation": "modify",
-      "bytes": 23260,
-      "sha256": "f697c29f078d989f9eedc63a11fbd68efa37061ec1f0ec567a31715d894b4af3",
-      "gitBlobSha1": "980c44f57f5f03e5cbe6eaa076de18b4a818c003",
+      "bytes": 23218,
+      "sha256": "30bcc8cf40a89e28a59a25d5ba451330fa378f9308e8dfdf475e5dd37f9e76d1",
+      "gitBlobSha1": "83935708ba4683c5985872b500e01ac7fdd8802a",
       "baselineBlobSha1": "68001e66bc0266042dd5318c101176c5ceb9ee41",
       "baselineSha256": "f1e1b9cc05163250d40849bca227873d825d69cb346cfbfdb3dc84d7bd24e1fc",
-      "crlfCount": 59,
+      "crlfCount": 60,
       "binary": false
     },
     {
@@ -995,12 +1006,12 @@
     {
       "path": "tests/e2e/ios-interface-overflow.spec.ts",
       "operation": "modify",
-      "bytes": 9665,
-      "sha256": "2677a97f7087477f64ff08a78602d1512ec9dbf5f9af494603823d18018ff46c",
-      "gitBlobSha1": "5137568e0c1b72be5a6cd1cf179b493e06ee7470",
+      "bytes": 9739,
+      "sha256": "fef98ccbb902849fcd6be2c01eb323b3ba80befe694ec294b62db97e2574bdef",
+      "gitBlobSha1": "edcf3776dab628ffce29f1eea89c372ada8fb4c4",
       "baselineBlobSha1": "60f647f644ccab19d921355f299601c29c4f044d",
       "baselineSha256": "6b332c59f44f15b3608b6be8c406e9bf036f8f2aec398941ded78841f9f2a4b8",
-      "crlfCount": 159,
+      "crlfCount": 160,
       "binary": false
     },
     {
@@ -1061,9 +1072,9 @@
     {
       "path": "tests/e2e/new-feature-journeys.spec.ts",
       "operation": "modify",
-      "bytes": 48212,
-      "sha256": "437b651dca3f9a165322d95a8a6b52da0be580e00726d589fb7366e4f9624dbf",
-      "gitBlobSha1": "37af61f18f227bcce2c2299c80017a7d4eea659d",
+      "bytes": 48479,
+      "sha256": "b21fc29ce6db525ea4aeaac0aa27077c5c5e76b247116e07b48b4e102f4ca025",
+      "gitBlobSha1": "3e24b34c00a75009e521dea7f30497733351f055",
       "baselineBlobSha1": "fdc87dbb04ddb2324a7b2673766016261c9c2e04",
       "baselineSha256": "478c6682e1b02b87ffa33a2a6ef853271f709396986d240333e905409cb9f680",
       "crlfCount": 0,
@@ -1138,12 +1149,12 @@
     {
       "path": "tests/e2e/reader-defaults.spec.ts",
       "operation": "modify",
-      "bytes": 11666,
-      "sha256": "5b2f100da3f8e702a6ff25a20da1a6c3f019e888d67da1fa674f304dc446b82b",
-      "gitBlobSha1": "88c962bb5bb870c0115b3e346a2974c6f62158a0",
+      "bytes": 12311,
+      "sha256": "dc3bb6c580ce83f31f43156c37cc0fc941a971a6366cf12b396720a98b503df3",
+      "gitBlobSha1": "6d3a58d2d54138780265f0216b1309ad9c446b9b",
       "baselineBlobSha1": "f30c78eb10a83a638c84508bb6b0ef7e0370d677",
       "baselineSha256": "7f334fe24863084fad165b6a10fda861f43b77073598d3a1ee31149ecddfe275",
-      "crlfCount": 193,
+      "crlfCount": 202,
       "binary": false
     },
     {
@@ -1345,6 +1356,17 @@
       "binary": false
     },
     {
+      "path": "tests/unit/reader/pdf-crop.test.ts",
+      "operation": "modify",
+      "bytes": 2998,
+      "sha256": "edde174b1f88bb70ebecfca513cb5e4fd8c3e2b50a73839e190193c72acbba83",
+      "gitBlobSha1": "c29e6a9c28ad0759821873a9c60fa99846746ff2",
+      "baselineBlobSha1": "faf138463f96fb29ed7b470f5fc74f7c943431c2",
+      "baselineSha256": "40b318b906fbc75ad9d738a30e8785813ff15a09c9344e4a499071f338951b02",
+      "crlfCount": 0,
+      "binary": false
+    },
+    {
       "path": "tests/unit/vegan-week-cache.test.ts",
       "operation": "modify",
       "bytes": 8839,
@@ -1382,42 +1404,42 @@
     {
       "name": "upload-b64-001.txt",
       "bytes": 90000,
-      "sha256": "997291179977a0359363700b1d44bbd2c0b9b45583c0420d7d5bec8cc26f36cc"
+      "sha256": "f51b4bd50e30a9132758dbbff19c757c178cea6e219526a06d3c0cce36c2ff10"
     },
     {
       "name": "upload-b64-002.txt",
       "bytes": 90000,
-      "sha256": "190b54b9de14107d0b83c1a9c533ee12013051d7ab1c026b70d020c3909a69d8"
+      "sha256": "0103fbed2ca52fd5aeaee9fd952e6ad0c603d642766b4e15d4ae8be2cbf2afbe"
     },
     {
       "name": "upload-b64-003.txt",
       "bytes": 90000,
-      "sha256": "bde6ad3f037299404702074a1d9c5fb54dab44f190c28c0a1aebbf64d05d4162"
+      "sha256": "dc43e68bd422e9508ce8b6c68c27333cfad2e84d49f27e88574300b17d9f922f"
     },
     {
       "name": "upload-b64-004.txt",
       "bytes": 90000,
-      "sha256": "f4b820a08fa1e17c7aa6d431a6925b2f4d601c81140bc5b715b1a37ba131b722"
+      "sha256": "cae25d15d5f81c985124902dfe93bbf3771b3d54dae0728fc4fb686371098278"
     },
     {
       "name": "upload-b64-005.txt",
       "bytes": 90000,
-      "sha256": "2da38ab45d7326e11a1dddafec4ffc7341a81f59287c6ffcec2f70b8077a92e9"
+      "sha256": "69249456c7df4d7c6d67c4e4ed284c54d61d6e0325762072e38777769f87fd62"
     },
     {
       "name": "upload-b64-006.txt",
       "bytes": 90000,
-      "sha256": "d384abb8f77c416269091b671010f17f5cac4d5afaf2cbf223bf9f6e2c785798"
+      "sha256": "e3347fb122f830507d480ccefe311121f0adbd3eb07a85dc5dd0ef5e65db87a0"
     },
     {
       "name": "upload-b64-007.txt",
       "bytes": 90000,
-      "sha256": "59e927f546e7e3cba0938efde37470f1f9f97123ad798adce77cb24c28ead560"
+      "sha256": "5a973f4a269c7c279320336bf897ec9e103d0442c68ea5c8444fd8b4332dd212"
     },
     {
       "name": "upload-b64-008.txt",
-      "bytes": 21292,
-      "sha256": "50a8cfa23208398ac93d8aee36e4f4923b3d77b83727d2a0a08b03c2205d3362"
+      "bytes": 24436,
+      "sha256": "f7c751066e511583700aed2bd9e4a1c22cb6ee858fa79da13ac36cf197b5b08a"
     }
   ],
   "parts": [
@@ -1437,11 +1459,11 @@
         "src/lib/browser/audio-player-controller.ts",
         "src/lib/browser/image-export.ts"
       ],
-      "bytes": 236802,
-      "sha256": "057b1383cbfbdf51a88a93429f1360ac368c09e262f1613579fbe21a8cb88a2d",
+      "bytes": 238218,
+      "sha256": "f72e861dd39d3f62cc681a47f4425309f4b439b6eb8cd6020fe32c3aac329a51",
       "base64Name": "part-01.patch.gz.b64",
-      "base64Bytes": 56832,
-      "gzipSha256": "55124beaf1137e1307ec57bed6316867f29f4f5666e0ace682d6f4b4b4584a4e"
+      "base64Bytes": 57456,
+      "gzipSha256": "d12b90da8f9b086eb1886b39e81a81d1f401faa5089a7e893a7a8ef336daf5d5"
     },
     {
       "name": "part-02.patch",
@@ -1449,6 +1471,7 @@
         "src/lib/browser/native-api.ts",
         "src/lib/browser/native-talk-audio.ts",
         "src/lib/browser/pdf-book-transition.ts",
+        "src/lib/browser/pdf-crop.ts",
         "src/lib/browser/pdf-offline-downloads.ts",
         "src/lib/browser/practice-community.ts",
         "src/lib/browser/session-cover.ts",
@@ -1469,11 +1492,11 @@
         "src/lib/components/practice/catalog/PracticeRecommendations.svelte",
         "src/lib/components/practice/community/PracticeBadgeIcon.svelte"
       ],
-      "bytes": 214170,
-      "sha256": "8b97b47c03798ab0fbfd87b8df82eccf24bf42cc100cf50ca346a327c680648f",
+      "bytes": 216183,
+      "sha256": "414b885c9c35d44d8ee487fc0197774d9233219e57964ca7a219965179bd27fd",
       "base64Name": "part-02.patch.gz.b64",
-      "base64Bytes": 81400,
-      "gzipSha256": "d58d85fafe63eb6f4bfa3c793c22d5a65a79d511e5669f6b7495304016275aa9"
+      "base64Bytes": 82416,
+      "gzipSha256": "84571f224d84777921ed89a010e5db14bb13e959d4ccd89e17c221dee4dbfaad"
     },
     {
       "name": "part-03.patch",
@@ -1506,11 +1529,11 @@
         "src/lib/contracts/vegan-week.ts",
         "src/lib/data/offline-album-plays.json"
       ],
-      "bytes": 175877,
-      "sha256": "7a1ec68486d6ddc671b8c6682a04d05096627373d6fd496e890de068464a7260",
+      "bytes": 177158,
+      "sha256": "33dbbc82418bfaaba8b0e6076958fb59d8e0f54d043a7dd684113c81e6f5676b",
       "base64Name": "part-04.patch.gz.b64",
-      "base64Bytes": 57708,
-      "gzipSha256": "6973ecb8ac1050ca9d85bf7420131997176f63cda7ff62ba8bf89c25f0496c18"
+      "base64Bytes": 58296,
+      "gzipSha256": "b705f0cde1fca159d1c4b1eee4e9198b0126a26a74a9e1e60883baf0d6221b96"
     },
     {
       "name": "part-05.patch",
@@ -1597,18 +1620,18 @@
         "tests/e2e/mobile-talk-video-audio.spec.ts",
         "tests/e2e/native-footer-paper.spec.ts",
         "tests/e2e/new-feature-accessibility.spec.ts",
-        "tests/e2e/new-feature-journeys.spec.ts",
-        "tests/e2e/personal-anniversary-layout.spec.ts"
+        "tests/e2e/new-feature-journeys.spec.ts"
       ],
-      "bytes": 239564,
-      "sha256": "f3878db83acc268aa957defee5f88027f5a99f9feeaced7fa37db6680292d420",
+      "bytes": 237903,
+      "sha256": "a3b7fd7d3e48c543c4652e4502dec98cbcfdfcbe063fa187ad4114003428ef3f",
       "base64Name": "part-09.patch.gz.b64",
-      "base64Bytes": 53192,
-      "gzipSha256": "66636761e70e2034d3e7b342866ee6217983f4889145a0d7ef18c154259cc7cf"
+      "base64Bytes": 52784,
+      "gzipSha256": "da5f44d7bed0907d7c17d5becc1081a30e2072d1e75ee5529264b6fa6e85767c"
     },
     {
       "name": "part-10.patch",
       "files": [
+        "tests/e2e/personal-anniversary-layout.spec.ts",
         "tests/e2e/practice-privacy.spec.ts",
         "tests/e2e/practice-routine-rotation.spec.ts",
         "tests/e2e/practice-upgrade.spec.ts",
@@ -1627,11 +1650,11 @@
         "tests/unit/haptics.test.ts",
         "tests/unit/image-export.test.ts"
       ],
-      "bytes": 215867,
-      "sha256": "721b7a328a29386953d1601047407cfdd95fc31b469795e27ef0045a1fb5ddf3",
+      "bytes": 218916,
+      "sha256": "667489e76483614fa3ed3ea81c50dbae94b8fc9c584415db7de40b54d540f4cd",
       "base64Name": "part-10.patch.gz.b64",
-      "base64Bytes": 52892,
-      "gzipSha256": "554b3ee60d5b60066294a50ecef1d545bc8e90e80a703b92dcc363198ccd02f0"
+      "base64Bytes": 53936,
+      "gzipSha256": "1d0791123fb274f264bcf69d15b0808c4bb5d2f66efe6305af4e833ddbe4fa1b"
     },
     {
       "name": "part-11.patch",
@@ -1643,14 +1666,15 @@
         "tests/unit/practice/fixtures/eight-precept-rite-source.txt",
         "tests/unit/practice/name-copying.test.ts",
         "tests/unit/practice/practice-navigation-guard.test.ts",
+        "tests/unit/reader/pdf-crop.test.ts",
         "tests/unit/vegan-week-cache.test.ts",
         "tests/unit/vegan-week-publisher.test.ts"
       ],
-      "bytes": 209673,
-      "sha256": "8f52536360d8574c0c0d0f9719b9778775860148ccc3c0cd4e5a39bbba529141",
+      "bytes": 211725,
+      "sha256": "0efad6b67aa3dd39cbde879904f116a60054b0ef6e3e1b60305647148617eaae",
       "base64Name": "part-11.patch.gz.b64",
-      "base64Bytes": 47016,
-      "gzipSha256": "06470dd64bfee0f9417ab006a5be27a95b9bfe854a6f7d3fd382e0b48d16d4e4"
+      "base64Bytes": 47756,
+      "gzipSha256": "4f4769130511a5394a245dd7b654d43626f087aa909fe0cdcbaa29e788d3cbb1"
     },
     {
       "name": "part-12.patch",
