@@ -1,4 +1,7 @@
 import { defineConfig } from '@playwright/test';
+import { resolve } from 'node:path';
+
+const evidence = resolve(process.cwd(), 'qa-evidence/webkit-persistent-smoke');
 
 export default defineConfig({
   testDir: '.',
@@ -8,8 +11,8 @@ export default defineConfig({
   retries: 0,
   timeout: 30_000,
   expect: { timeout: 5_000 },
-  outputDir: 'qa-evidence/webkit-persistent-smoke/test-results',
-  reporter: [['line'], ['json', { outputFile: 'qa-evidence/webkit-persistent-smoke/results.json' }]],
+  outputDir: resolve(evidence, 'test-results'),
+  reporter: [['line'], ['json', { outputFile: resolve(evidence, 'results.json') }]],
   use: {
     browserName: 'webkit',
     headless: true,
