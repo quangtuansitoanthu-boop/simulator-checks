@@ -1,0 +1,340 @@
+name: iOS 18 remaining cases with shared UI test products
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/ios18-remaining-shards.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ios18-remaining-shards-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    name: Build frozen iOS 18 UI test products once
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: b954eb033a2503c360af2cce85e167e418fd5557
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Apply checksummed current local source
+        run: |
+          python3 -c "import hashlib,pathlib; p=pathlib.Path('../harness/manifest.json'); assert hashlib.sha256(p.read_bytes()).hexdigest()=='805ff05ad1aa9638b413ca7c0e2bef9e9f58fe6234f9c9fea6bf9cef0fb4669c', 'Frozen source manifest mismatch'"
+          python3 ../harness/verify-apply.py --app-repo . --transfer-dir ../harness
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Verify Apple toolchain
+        run: |
+          xcodebuild -version
+          pod --version
+      - name: Install locked dependencies and build iOS assets
+        run: |
+          npm ci
+          npm run build:mobile -- --platform ios
+      - name: Isolate production hosts for native tests
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          proxy=subprocess.check_output(['scutil','--proxy'],text=True)
+          assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy)
+          assert not any(v for k,v in os.environ.items() if k.lower() in ('http_proxy','https_proxy','all_proxy'))
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          text=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+          hosts.update(re.findall(r'https://([a-z0-9.-]+)',text))
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'mobile-qa-hosts.backup'
+          assert not backup.exists()
+          original=pathlib.Path('/etc/hosts').read_text()
+          backup.write_text(original)
+          lines=[]
+          for line in original.splitlines():
+              address,sep,comment=line.partition('#')
+              parts=address.split()
+              if len(parts)>1 and any(h.lower() in hosts for h in parts[1:]):
+                  aliases=[h for h in parts[1:] if h.lower() not in hosts]
+                  if aliases: lines.append(parts[0]+'\t'+' '.join(aliases))
+              else: lines.append(line)
+          for host in sorted(hosts):
+              assert re.fullmatch(r'[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          subprocess.run(['sudo','dscacheutil','-flushcache'],check=True)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({x[4][0] for x in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(x).is_loopback for x in addresses)
+              proof[host]=addresses
+          pathlib.Path('build/release-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - name: Select and boot an existing simulator
+        env:
+          IOS_RUNTIME: '18.5'
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; v=os.environ["IOS_RUNTIME"].replace(".","-"); print(next(x["udid"] for k in sorted(d) if ".iOS-"+v in k for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]))')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+      - name: Build native plugins and UI tests
+        run: |
+          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+            -derivedDataPath build/ios-simulator CODE_SIGNING_ALLOWED=NO build-for-testing
+      - name: Package complete UI test products for both shards
+        run: |
+          set -euo pipefail
+          products=build/ios-simulator/Build/Products
+          test -d "$products/Debug-iphonesimulator/App.app"
+          test -d "$products/Debug-iphonesimulator/AppUITests-Runner.app"
+          test "$(find "$products" -maxdepth 1 -name '*.xctestrun' | wc -l | tr -d ' ')" = 1
+          mkdir -p build/shared-products
+          ditto -c -k --keepParent "$products" build/shared-products/UITestProducts.zip
+          cp ../harness/manifest.json build/shared-products/source-manifest.json
+      - name: Upload reusable app UI Runner and xctestrun
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios18-ui-test-products-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/shared-products/
+          retention-days: 3
+          if-no-files-found: error
+      - name: Shut down simulator and restore runner network
+        if: always()
+        run: |
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR" || true; fi
+          if [[ -f "$RUNNER_TEMP/mobile-qa-hosts.backup" ]]; then
+            sudo cp "$RUNNER_TEMP/mobile-qa-hosts.backup" /etc/hosts
+            sudo dscacheutil -flushcache
+          fi
+
+  remaining:
+    name: iOS 18.5 ${{ matrix.label }} (1 required test)
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Copy-Ghost
+            scenario: AppUITests/NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost
+          - label: Reminder
+            scenario: AppUITests/NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: b954eb033a2503c360af2cce85e167e418fd5557
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Apply checksummed current local source
+        run: |
+          python3 -c "import hashlib,pathlib; p=pathlib.Path('../harness/manifest.json'); assert hashlib.sha256(p.read_bytes()).hexdigest()=='805ff05ad1aa9638b413ca7c0e2bef9e9f58fe6234f9c9fea6bf9cef0fb4669c', 'Frozen source manifest mismatch'"
+          python3 ../harness/verify-apply.py --app-repo . --transfer-dir ../harness
+      - name: Download matching frozen UI test products
+        uses: actions/download-artifact@v6
+        with:
+          name: ios18-ui-test-products-${{ github.run_id }}-${{ github.run_attempt }}
+          path: prebuilt
+      - name: Verify product source manifest and restore Products
+        run: |
+          set -euo pipefail
+          cmp ../harness/manifest.json ../prebuilt/source-manifest.json
+          mkdir -p build/ios-simulator/Build
+          ditto -x -k ../prebuilt/UITestProducts.zip build/ios-simulator/Build
+          test -d build/ios-simulator/Build/Products/Debug-iphonesimulator/AppUITests-Runner.app
+      - name: Isolate production hosts for native tests
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          proxy=subprocess.check_output(['scutil','--proxy'],text=True)
+          assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy)
+          assert not any(v for k,v in os.environ.items() if k.lower() in ('http_proxy','https_proxy','all_proxy'))
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          text=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+          hosts.update(re.findall(r'https://([a-z0-9.-]+)',text))
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'mobile-qa-hosts.backup'
+          assert not backup.exists()
+          original=pathlib.Path('/etc/hosts').read_text()
+          backup.write_text(original)
+          lines=[]
+          for line in original.splitlines():
+              address,sep,comment=line.partition('#')
+              parts=address.split()
+              if len(parts)>1 and any(h.lower() in hosts for h in parts[1:]):
+                  aliases=[h for h in parts[1:] if h.lower() not in hosts]
+                  if aliases: lines.append(parts[0]+'\t'+' '.join(aliases))
+              else: lines.append(line)
+          for host in sorted(hosts):
+              assert re.fullmatch(r'[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          subprocess.run(['sudo','dscacheutil','-flushcache'],check=True)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({x[4][0] for x in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(x).is_loopback for x in addresses)
+              proof[host]=addresses
+          pathlib.Path('build/release-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - name: Select and boot an existing simulator
+        env:
+          IOS_RUNTIME: '18.5'
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; v=os.environ["IOS_RUNTIME"].replace(".","-"); print(next(x["udid"] for k in sorted(d) if ".iOS-"+v in k for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]))')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+      - name: Execute one remaining case on a fresh install without rebuilding
+        env:
+          SCENARIO: ${{ matrix.scenario }}
+        run: |
+          set -euo pipefail
+          products=build/ios-simulator/Build/Products
+          test "$(find "$products" -maxdepth 1 -name '*.xctestrun' | wc -l | tr -d ' ')" = 1
+          xctestrun=$(find "$products" -maxdepth 1 -name '*.xctestrun')
+          xcrun simctl uninstall "$TUTAM_QA_SIMULATOR" vn.quangtu.tutam || true
+          xcodebuild -xctestrun "$xctestrun" \
+            -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+            -resultBundlePath build/release-evidence/NativeAudit-1.xcresult \
+            -parallel-testing-enabled NO -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 750 -maximum-test-execution-time-allowance 750 \
+            "-only-testing:$SCENARIO" test-without-building 2>&1 | tee build/release-evidence/native-test-1.txt
+      - name: Require exactly one pass and no failures or skips
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,subprocess
+          root=pathlib.Path('build/release-evidence')
+          results=list(root.glob('NativeAudit-*.xcresult'))
+          assert len(results)==1,(len(results),1)
+          data=json.loads(subprocess.check_output(['xcrun','xcresulttool','get','test-results','summary','--path',str(results[0])],text=True))
+          (root/'native-summary.json').write_text(json.dumps(data,indent=2))
+          assert data['totalTestCount']==1 and data['passedTests']==1 and data['failedTests']==0 and data['skippedTests']==0,data
+          print('Verified exactly one native case, one pass, zero failures, zero skips')
+          PY
+      - name: Export readable shard evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p build/readable-evidence
+          for item in native-test-1.txt host-isolation.json native-summary.json; do
+            if [[ -f "build/release-evidence/$item" ]]; then cp "build/release-evidence/$item" "build/readable-evidence/$item"; fi
+          done
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            xcrun simctl io "$TUTAM_QA_SIMULATOR" screenshot build/readable-evidence/native-final.png
+          fi
+          result=build/release-evidence/NativeAudit-1.xcresult
+          mkdir -p build/readable-evidence/NativeAudit-1/attachments
+          xcrun xcresulttool get test-results summary --path "$result" > build/readable-evidence/NativeAudit-1/summary.json
+          xcrun xcresulttool export attachments --path "$result" --output-path build/readable-evidence/NativeAudit-1/attachments
+      - name: Upload readable shard result including failures
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios18-remaining-${{ matrix.label }}-readable-${{ github.run_id }}
+          path: |
+            app/build/readable-evidence/**/*.png
+            app/build/readable-evidence/**/*.txt
+            app/build/readable-evidence/**/*.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Shut down simulator and restore runner network
+        if: always()
+        run: |
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR" || true; fi
+          if [[ -f "$RUNNER_TEMP/mobile-qa-hosts.backup" ]]; then
+            sudo cp "$RUNNER_TEMP/mobile-qa-hosts.backup" /etc/hosts
+            sudo dscacheutil -flushcache
+          fi
+
+  extract-old-failures:
+    name: Read existing iOS 18 PNG and Copy failures
+    runs-on: xcode-27
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Download existing completed iOS 18 evidence
+        uses: actions/download-artifact@v6
+        with:
+          name: current-ios-18.5-3
+          run-id: 44856628427
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          path: evidence
+      - name: Export only PNG and Copy attachments
+        run: |
+          set -euo pipefail
+          mkdir -p exported
+          for index in 2 6; do
+            bundle="evidence/NativeAudit-${index}.xcresult"
+            output="exported/NativeAudit-${index}"
+            mkdir -p "$output/attachments"
+            if [[ -f "evidence/native-test-${index}.log" ]]; then cp "evidence/native-test-${index}.log" "$output/native-test.txt"; fi
+            xcrun xcresulttool get test-results summary --path "$bundle" > "$output/summary.json"
+            xcrun xcresulttool export attachments --path "$bundle" --output-path "$output/attachments"
+          done
+          if [[ -f evidence/host-isolation.json ]]; then cp evidence/host-isolation.json exported/host-isolation.json; fi
+          python3 - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('exported')
+          inventory={'sourceRun':44856628427,'sourceArtifact':'current-ios-18.5-3','requestedBundles':[2,6],'incompleteOriginalBundle':10,'originalState':'7 passed, 2 failed, 1 started but canceled; no full coverage pass','summaries':[]}
+          for index in (2,6):
+              data=json.loads((root/f'NativeAudit-{index}'/'summary.json').read_text())
+              inventory['summaries'].append({'bundle':index,'passedTests':data['passedTests'],'failedTests':data['failedTests'],'skippedTests':data['skippedTests'],'testFailures':data.get('testFailures',[])})
+          (root/'export-inventory.json').write_text(json.dumps(inventory,indent=2))
+          PY
+      - name: Upload existing failure screenshots AX logs and summaries
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios18-png-copy-readable-evidence
+          path: |
+            exported/**/*.png
+            exported/**/*.jpg
+            exported/**/*.jpeg
+            exported/**/*.txt
+            exported/**/*.json
+          retention-days: 7
+          if-no-files-found: error
