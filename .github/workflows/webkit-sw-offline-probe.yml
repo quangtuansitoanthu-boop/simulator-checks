@@ -1,0 +1,115 @@
+name: Stock WebKit service-worker offline capability diagnostic
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/webkit-sw-offline-probe.yml']
+permissions:
+  contents: read
+concurrency:
+  group: webkit-sw-offline-probe-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    name: Two strict stock WebKit service-worker controls
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      TUTAM_E2E_LOCAL_ONLY: '1'
+      TUTAM_E2E_PROXY_PORT: '8799'
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      DO_NOT_TRACK: '1'
+      WRANGLER_SEND_METRICS: 'false'
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    steps:
+      - name: Check out diagnostic harness
+        uses: actions/checkout@v6
+        with: {path: harness, persist-credentials: false}
+      - name: Check out immutable application package baseline
+        uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify source snapshot without building or loading the application
+        run: |
+          set -euo pipefail
+          echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | shasum -a 256 -c -
+          python3 ../harness/apply-current.py "$PWD"
+      - uses: actions/setup-node@v6
+        with: {node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json}
+      - name: Install locked stock packages and their WebKit runtime
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps webkit
+      - name: Pin stock version old offline initialization and exact diagnostic files
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib,re
+          source=pathlib.Path('../harness').resolve();app=pathlib.Path('.').resolve()
+          output=app/'qa-evidence/webkit-sw-offline-probe';output.mkdir(parents=True,exist_ok=True)
+          version=json.loads((app/'node_modules/@playwright/test/package.json').read_text())['version']
+          core_version=json.loads((app/'node_modules/playwright-core/package.json').read_text())['version']
+          assert version==core_version=='1.62.1','Probe must use the original locked stock Playwright'
+          core=app/'node_modules/playwright-core/lib/coreBundle.js';core_bytes=core.read_bytes()
+          old=r'if\s*\(contextOptions\.offline\)\s*promises2\.push\(session2\.send\("Network\.setEmulateOfflineState",\s*\{\s*offline:\s*true\s*\}\)\)'
+          assert re.search(old,core_bytes.decode()),'Original offline initialization is absent; do not patch or silently upgrade'
+          browsers=json.loads((app/'node_modules/playwright-core/browsers.json').read_text())['browsers']
+          webkit=next(item for item in browsers if item['name']=='webkit')
+          expected={
+            'webkit-persistent-fixtures.ts':('tests/e2e/helpers/webkit-persistent-fixtures.ts','516c34cc0dcdf51bd07dfe72d9dcbf34090bd038f3b178ec16d2fb35bf092b1b'),
+            'github-webkit-sw-offline-probe.spec.ts':('tests/e2e/github-webkit-sw-offline-probe.spec.ts','bfa1bebda273d3fb06f261b6a5bafb68b3b89172763193d4c034ea14e0e9bd63'),
+            'github-webkit-sw-offline-probe.config.ts':('tests/e2e/github-webkit-sw-offline-probe.config.ts','b1faae10760bf9a1a6dcd43b7d2ae26fcd93877850aa95b4c7c086b709a2dc03'),
+          }
+          pending=[]
+          for name,(relative,digest) in expected.items():
+              data=(source/name).read_bytes();assert hashlib.sha256(data).hexdigest()==digest,name
+              target=app/relative;assert target.resolve().is_relative_to(app)
+              pending.append((target,data))
+          for target,data in pending:
+              target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
+          (output/'stock-provenance.json').write_text(json.dumps({'diagnosticOnly':True,'applicationLoaded':False,'appBuild':False,'packageVersion':version,'coreVersion':core_version,'coreSha256':hashlib.sha256(core_bytes).hexdigest(),'unpatchedOfflineInitialization':True,'webkitRegistry':webkit,'fixtureSha256':expected['webkit-persistent-fixtures.ts'][1],'staged':{name:digest for name,(_,digest) in expected.items()}},indent=2)+'\n')
+          PY
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs';import {createHash} from 'node:crypto';import {webkit} from '@playwright/test';
+          const launcher=webkit.executablePath();const bytes=fs.readFileSync(launcher);
+          fs.writeFileSync('qa-evidence/webkit-sw-offline-probe/binary-provenance.json',JSON.stringify({launcher,launcherSha256:createHash('sha256').update(bytes).digest('hex'),launcherBytes:bytes.length,actualBrowserVersionRecordedByEachCase:true},null,2)+'\n');
+          JS
+      - name: Run both strict controls without fail fast retry or expected failures
+        run: npx playwright test --config=tests/e2e/github-webkit-sw-offline-probe.config.ts --workers=1 --retries=0 --max-failures=0
+      - name: Preserve actual diagnostic outcomes without declaring application success
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          output=pathlib.Path('qa-evidence/webkit-sw-offline-probe');report=output/'results.json'
+          data=json.loads(report.read_text()) if report.exists() else {};cases=[]
+          def walk(suites):
+              for suite in suites:
+                  for spec in suite.get('specs',[]):
+                      for case in spec.get('tests',[]):cases.append({'title':spec.get('title'),'expectedStatus':case.get('expectedStatus'),'results':case.get('results',[])})
+                  walk(suite.get('suites',[]))
+          walk(data.get('suites',[]));stats=data.get('stats',{})
+          complete=(len(cases)==2 and stats.get('skipped')==0 and stats.get('flaky')==0 and not data.get('errors')
+            and all(case['expectedStatus']=='passed' and len(case['results'])==1 and case['results'][0].get('retry',0)==0
+              and case['results'][0].get('status') in ('passed','failed','timedOut') for case in cases))
+          summary={'diagnosticOnly':True,'applicationValidated':False,'expectedCases':2,'collected':len(cases),'completeEvidence':complete,'stats':stats,'errors':data.get('errors',[]),'cases':[{'title':case['title'],'results':[{'status':r.get('status'),'retry':r.get('retry'),'error':r.get('error')} for r in case['results']]} for case in cases]}
+          output.mkdir(parents=True,exist_ok=True);(output/'diagnostic-summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,indent=2))
+          assert complete,'Both strict diagnostic cases must run once with no skips flakes or infrastructure collection errors'
+          PY
+      - name: Upload actual controls traces and stock provenance
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: webkit-sw-offline-stock-${{ github.run_id }}
+          path: app/qa-evidence/webkit-sw-offline-probe/
+          retention-days: 7
+          if-no-files-found: error
