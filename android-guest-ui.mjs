@@ -127,7 +127,8 @@ try {
   await flow('04-settings-dark', async () => {
     await nav('Cá nhân');
     await page.getByRole('button', { name: /^Cài đặt ứng dụng /u }).click();
-    await page.getByRole('button', { name: /^Giao diện & ngôn ngữ /u }).click();
+    await page.locator('#settings-display > summary').click();
+    await expect(page.locator('#settings-display')).toHaveAttribute('open', '');
     await page.getByRole('button', { name: 'Tối', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
@@ -140,14 +141,14 @@ try {
   });
   await flow('06-rosary-native-back-count', async () => {
     await nav('Tu tập');
-    await page.getByRole('button', { name: /^Lần tràng hạt /u }).click();
+    await page.locator('button.tt-mode-card--chuoi').click();
     await page.getByRole('button', { name: 'Bắt đầu 🙏', exact: true }).click();
     await expect(page.getByText('0/108', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Niệm một hạt', exact: true }).click();
     await expect(page.getByText('1/108', { exact: true })).toBeVisible();
     await back();
     await expect(page.getByText('Chế Độ Tu Tập', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: /^Lần tràng hạt /u }).click();
+    await page.locator('button.tt-mode-card--chuoi').click();
     await page.getByRole('button', { name: 'Bắt đầu 🙏', exact: true }).click();
     await expect(page.getByText('1/108', { exact: true })).toBeVisible();
     await back();
