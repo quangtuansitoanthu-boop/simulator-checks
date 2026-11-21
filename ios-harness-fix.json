@@ -1,20 +1,21 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "path": "ios/App/AppUITests/NativeGuestSmokeTests.swift",
   "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
   "baseCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
   "baseSha256": "98669eca6c455ce7cc4db2b6fb2a8c4968eaad5e14bfe0998ccdfe6a603a3edd",
-  "sha256": "318c4d745d076f6641217db78ee011e85af12f9c29a62fa8a2d1fbcbeed51902",
-  "bytes": 87231,
-  "change": "UI harness only: canonical vegetarian title, bounded AX geometry/header alias, theme reveal/fresh checked lookup, and actual Sound test-notification permission precondition before personal reminders; all 13 test identifiers and their assertions retained.",
+  "sha256": "2da6684d4d67518118217eea11dbe2129f755f41af8b655e66a3633fe66a68cc",
+  "bytes": 87570,
+  "change": "UI harness only: canonical vegetarian title; measured visible footer/contentViewport and observed AX header; theme reveal; actual notification precondition; and monotonic >=4s Rosary pause sampling outside XCTWaiter. All 13 test identifiers and substantive contracts retained.",
   "helper": {
     "name": "contentViewport",
     "baseSha256": "9a86d6df892db1348c2f0360ae8878de5b546a6f102a1d89ab46a99681a735f9",
-    "sha256": "e44cecaf9144fe5370436d689e0ff72158295c57cda5d11a12e01a028724dca4",
+    "sha256": "cdda698c21b237196776b339438284cf03275dc6149af96c050baaa1a4675e5f",
     "baseBytes": 1782,
-    "bytes": 2306,
+    "bytes": 2260,
     "chromeTolerancePoints": 2,
-    "observedHeaderAlias": "Tu tập Phật pháp, navigation"
+    "observedHeaderAlias": "Tu tập Phật pháp, navigation",
+    "footerPolicy": "Measured intersection with app, visible height >=44, lower half; no rounded AX bottom-edge alignment assumption"
   },
   "testMethodCount": 13,
   "testMethods": [
@@ -40,8 +41,7 @@
     "baseBytes": 182,
     "bytes": 263
   },
-  "unchangedOutsideReviewedSegmentsSha256": "e0d9d3a8e40e15b3874ce2ed7cae039fe30d13b3720b18e0e58fec8286e62ff0",
-  "testBodiesUnchangedExceptReviewedVegetarianAndThemeSegments": true,
+  "unchangedOutsideReviewedSegmentsSha256": "14f11b6e23c9d41e152d6c4d6e5649adfe5d00f9aabb4a054cf037d71f2a36a2",
   "personalHelpers": [
     {
       "name": "allowPersonalNotificationPermission",
@@ -60,7 +60,6 @@
       "bytes": 636
     }
   ],
-  "allTestMethodAssertionsUnchanged": true,
   "baseAssertionCallCounts": {
     "XCTAssertTrue": 85,
     "waitUntil": 29,
@@ -74,12 +73,24 @@
   "assertionCallCounts": {
     "XCTAssertTrue": 86,
     "waitUntil": 29,
-    "XCTAssertEqual": 33,
+    "XCTAssertEqual": 34,
     "XCTFail": 27,
     "XCTAssertNotNil": 2,
     "XCTAssertFalse": 8,
     "XCTAssertGreaterThanOrEqual": 9,
     "XCTAssertGreaterThan": 1
   },
-  "existingPersonalEnabledAssertionRetainedOnce": true
+  "existingPersonalEnabledAssertionRetainedOnce": true,
+  "rosaryPauseSegment": {
+    "testMethod": "testRosaryManualAndAutomaticAudioProgress",
+    "baseSha256": "52faac1fe0f9f2fc0c06303c790237d712ad555db3c26db2661cb288c311171a",
+    "sha256": "9195eb57adb521d4e7412fb39115372b8a99743386f573fd0b695613c35601bb",
+    "baseBytes": 326,
+    "bytes": 711,
+    "minimumPauseSeconds": 4,
+    "samplingIntervalMaximumSeconds": 0.25,
+    "resumeAssertionsUnchanged": true
+  },
+  "testMethodsUnchangedOutsideReviewedTitleThemeAndPauseSegments": true,
+  "reviewedNativeAssertionContractsPreserved": true
 }

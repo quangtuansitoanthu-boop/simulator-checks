@@ -1,4 +1,4 @@
-"""Apply only the reviewed title and nested AX geometry edits in GitHub CI."""
+"""Apply only the exact reviewed native UI-test harness delta in GitHub CI."""
 import argparse
 import collections
 import hashlib
@@ -11,14 +11,17 @@ from pathlib import Path
 PATH = "ios/App/AppUITests/NativeGuestSmokeTests.swift"
 MANIFEST_SHA = "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7"
 BASE_SHA = "98669eca6c455ce7cc4db2b6fb2a8c4968eaad5e14bfe0998ccdfe6a603a3edd"
-PAYLOAD_SHA = "318c4d745d076f6641217db78ee011e85af12f9c29a62fa8a2d1fbcbeed51902"
-METADATA_SHA = "3ec70fc7f6f435feb6259251c1e315f1b14fb8f270f75bda88d944b0594a7726"
+PAYLOAD_SHA = "2da6684d4d67518118217eea11dbe2129f755f41af8b655e66a3633fe66a68cc"
+METADATA_SHA = "b4d4cf5de74ed218b33266ab56f3e015965d0d453aebd3d58e8a9e2c3172a8cb"
 BASE_COMMIT = "166d0aeb43341da6f907e096f80a003b49d3be89"
 OLD = 'let title = "Ăn Chay Thanh Tịnh"'.encode("utf-8")
 NEW = 'let title = "Lịch ăn chay đủ dinh dưỡng"'.encode("utf-8")
 
 OLD_THEME = b'            let choice = labelledToggle(label, app: app)\n            tap(choice, app: app)\n            waitUntil("Selected theme must become active") { self.checked(choice) == true }'
 NEW_THEME = b'            let choice = labelledToggle(label, app: app)\n            revealContentControl(choice, app: app)\n            tap(choice, app: app)\n            waitUntil("Selected theme must become active") { self.checked(self.labelledToggle(label, app: app)) == true }'
+
+OLD_PAUSE = b'        let unexpectedlyAdvanced = XCTNSPredicateExpectation(\n            predicate: NSPredicate { _, _ in self.rosaryCount(app) != pausedCount },\n            object: NSObject()\n        )\n        unexpectedlyAdvanced.isInverted = true\n        XCTAssertEqual(XCTWaiter.wait(for: [unexpectedlyAdvanced], timeout: 4), .completed)'
+NEW_PAUSE = b'        let pauseDeadline = ProcessInfo.processInfo.systemUptime + 4\n        // Ho\xc3\xa0n t\xe1\xba\xa5t t\xe1\xbb\xabng l\xe1\xba\xa7n \xc4\x91\xe1\xbb\x8dc AX; kh\xc3\xb4ng \xc4\x91\xe1\xbb\x83 deadline c\xe1\xbb\xa7a waiter ng\xe1\xba\xaft truy v\xe1\xba\xa5n \xc4\x91ang ch\xe1\xba\xa1y.\n        while ProcessInfo.processInfo.systemUptime < pauseDeadline {\n            XCTAssertEqual(rosaryCount(app), pausedCount, "Paused playback must not advance the bead counter")\n            let remaining = pauseDeadline - ProcessInfo.processInfo.systemUptime\n            if remaining > 0 {\n                RunLoop.current.run(until: Date().addingTimeInterval(min(0.25, remaining)))\n            }\n        }\n        XCTAssertEqual(rosaryCount(app), pausedCount, "The bead counter must remain paused after at least four seconds")'
 
 
 def digest(data):
@@ -52,13 +55,13 @@ def main():
     if digest(manifest) != MANIFEST_SHA:
         raise RuntimeError("Base complete-source manifest mismatch")
     if (metadata["path"] != PATH or metadata["baseSha256"] != BASE_SHA
-            or metadata["sha256"] != PAYLOAD_SHA or metadata["bytes"] != 87231):
+            or metadata["sha256"] != PAYLOAD_SHA or metadata["bytes"] != 87570):
         raise RuntimeError("Unexpected harness-only payload metadata")
     base = json.loads(manifest)
-    assert metadata['schemaVersion'] == 4 and metadata['baseCommit'] == base['baselineCommit'] == BASE_COMMIT
+    assert metadata['schemaVersion'] == 5 and metadata['baseCommit'] == base['baselineCommit'] == BASE_COMMIT
     assert metadata['baseManifestSha256'] == MANIFEST_SHA
     assert metadata['runtimeSourceChanged'] is False
-    assert metadata['testBodiesUnchangedExceptReviewedVegetarianAndThemeSegments'] is True
+    assert metadata['testMethodsUnchangedOutsideReviewedTitleThemeAndPauseSegments'] is True and metadata['reviewedNativeAssertionContractsPreserved'] is True
     before = target.read_bytes()
     blob = hashlib.sha1(b'blob ' + str(len(before)).encode() + b'\0' + before).hexdigest()
     assert blob == base['expected'][PATH]
@@ -100,6 +103,8 @@ def main():
             assert new_helper.index(b'if requestPermission { allowPersonalNotificationPermission(app) }') < new_helper.index(b'let enabled =')
             assertion = b'XCTAssertEqual(checked(enabled), true, "Personal reminders must be enabled for these scenarios")'
             assert old_helper.count(assertion) == new_helper.count(assertion) == 1
+    assert normalized_suffix.count(OLD_PAUSE) == suffix.count(NEW_PAUSE) == 1
+    normalized_suffix = normalized_suffix.replace(OLD_PAUSE, NEW_PAUSE, 1)
     normalized_suffix = normalized_suffix.replace(OLD, NEW, 1).replace(OLD_THEME, NEW_THEME, 1)
     assert normalized_suffix == suffix
     assert digest(bp + normalized_suffix) == metadata['unchangedOutsideReviewedSegmentsSha256']
@@ -108,13 +113,17 @@ def main():
     assert metadata['helper']['chromeTolerancePoints'] == 2
     assert ah.count(b'let chromeTolerance: CGFloat = 2') == 1 and ah.count(b'.intersection(frame)') == 2
     assert digest(OLD_THEME) == metadata['themeSegment']['baseSha256'] and digest(NEW_THEME) == metadata['themeSegment']['sha256']
+    assert digest(OLD_PAUSE) == metadata['rosaryPauseSegment']['baseSha256'] and digest(NEW_PAUSE) == metadata['rosaryPauseSegment']['sha256']
+    assert metadata['rosaryPauseSegment']['minimumPauseSeconds'] == 4 and metadata['rosaryPauseSegment']['resumeAssertionsUnchanged'] is True
+    assert NEW_PAUSE.count(b'let pauseDeadline = ProcessInfo.processInfo.systemUptime + 4') == 1
+    assert NEW_PAUSE.count(b'XCTAssertEqual(rosaryCount(app), pausedCount') == 2 and b'XCTWaiter' not in NEW_PAUSE
     assert ah.count(metadata['helper']['observedHeaderAlias'].encode()) == 1
     assert before.index(OLD_THEME) > before.index(b'func testLightDarkSettingsAndGuestDeepLinkNavigation()')
     assert payload.index(NEW_THEME) > payload.index(b'func testLightDarkSettingsAndGuestDeepLinkNavigation()')
     methods = lambda data: [n.decode() for n in re.findall(rb'^    func (test\w+)\(\)', data, re.M)]
     assert methods(before) == methods(payload) == metadata['testMethods']
     assert len(methods(payload)) == metadata['testMethodCount'] == 13
-    assert metadata['allTestMethodAssertionsUnchanged'] is True and metadata['existingPersonalEnabledAssertionRetainedOnce'] is True
+    assert metadata['reviewedNativeAssertionContractsPreserved'] is True and metadata['existingPersonalEnabledAssertionRetainedOnce'] is True
     assertions = lambda data: collections.Counter(re.findall(rb'\b(XCTAssert\w*|XCTFail|waitUntil)\s*\(', data))
     assert dict((key.decode(), value) for key, value in assertions(before).items()) == metadata['baseAssertionCallCounts']
     assert dict((key.decode(), value) for key, value in assertions(payload).items()) == metadata['assertionCallCounts']
@@ -123,7 +132,7 @@ def main():
         target.write_bytes(payload)
         if digest(target.read_bytes()) != PAYLOAD_SHA:
             raise RuntimeError("Written UI harness verification failed")
-    result = {"scope": "UI harness only; exact title/theme segments, contentViewport and two personal helpers",
+    result = {"scope": "UI harness only; exact reviewed helpers and title/theme/pause segments",
               "path": PATH, "baseManifestSha256": MANIFEST_SHA,
               "baseHarnessSha256": BASE_SHA, "harnessSha256": PAYLOAD_SHA,
               "harnessFixManifestSha256": METADATA_SHA, "testMethodCount": 13,

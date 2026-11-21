@@ -314,15 +314,14 @@ class NativeGuestUITestCase: XCTestCase {
             let navigation = app.otherElements.matching(NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "Điều hướng nhanh", "Quick navigation")).firstMatch
             guard navigation.exists else { return nil }
             let footer = navigation.frame
-            // iOS AX có thể lệch cạnh chrome dưới 2pt; vùng kéo vẫn dùng khung đo thật đã cắt theo app.
+            let clippedFooter = footer.intersection(frame)
+            // Chỉ phần footer thật sự nhìn thấy giới hạn vùng kéo; đáy AX có thể vượt safe area của app.
             guard footer.width > 0 && footer.height > 0 && footer.intersects(frame),
                   footer.minX >= frame.minX - chromeTolerance && footer.maxX <= frame.maxX + chromeTolerance,
-                  footer.minY > frame.midY && footer.minY < frame.maxY,
-                  abs(footer.maxY - frame.maxY) <= chromeTolerance else { return nil }
+                  clippedFooter.width > 0 && clippedFooter.height >= 44,
+                  clippedFooter.minY > frame.midY && clippedFooter.minY < frame.maxY else { return nil }
             let clippedHeader = header.frame.intersection(frame)
-            let clippedFooter = footer.intersection(frame)
-            guard clippedHeader.width > 0 && clippedHeader.height > 0,
-                  clippedFooter.width > 0 && clippedFooter.height > 0 else { return nil }
+            guard clippedHeader.width > 0 && clippedHeader.height > 0 else { return nil }
             let top = clippedHeader.maxY
             let bottom = clippedFooter.minY
             guard bottom > top else { return nil }
@@ -1419,12 +1418,16 @@ final class NativeSimulatorSnapshotTests: NativeGuestUITestCase {
         let resume = app.buttons["Tiếp tục"].firstMatch
         XCTAssertTrue(resume.waitForExistence(timeout: 12))
         let pausedCount = rosaryCount(app)
-        let unexpectedlyAdvanced = XCTNSPredicateExpectation(
-            predicate: NSPredicate { _, _ in self.rosaryCount(app) != pausedCount },
-            object: NSObject()
-        )
-        unexpectedlyAdvanced.isInverted = true
-        XCTAssertEqual(XCTWaiter.wait(for: [unexpectedlyAdvanced], timeout: 4), .completed)
+        let pauseDeadline = ProcessInfo.processInfo.systemUptime + 4
+        // Hoàn tất từng lần đọc AX; không để deadline của waiter ngắt truy vấn đang chạy.
+        while ProcessInfo.processInfo.systemUptime < pauseDeadline {
+            XCTAssertEqual(rosaryCount(app), pausedCount, "Paused playback must not advance the bead counter")
+            let remaining = pauseDeadline - ProcessInfo.processInfo.systemUptime
+            if remaining > 0 {
+                RunLoop.current.run(until: Date().addingTimeInterval(min(0.25, remaining)))
+            }
+        }
+        XCTAssertEqual(rosaryCount(app), pausedCount, "The bead counter must remain paused after at least four seconds")
 
         tap(resume, app: app)
         waitUntil("Playback must advance again after resume", timeout: 20) {
