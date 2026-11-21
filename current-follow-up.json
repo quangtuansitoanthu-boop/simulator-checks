@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
+  "baselineCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
+  "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
+  "uiFixManifestSha256": "b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295",
+  "scope": "All current approved source differences after the frozen UI overlay; native Java/Swift harnesses remain in their own layers",
+  "baseExpectedFileCount": 3275,
+  "comparedFileCount": 3272,
+  "excludedPaths": [
+    "android/app/src/androidTest/java/vn/quangtu/tutam/audio/DharmaAudioWidgetInitialLayoutTest.java",
+    "android/app/src/androidTest/java/vn/quangtu/tutam/widgets/CalendarWidgetRenderingTest.java",
+    "ios/App/AppUITests/NativeGuestSmokeTests.swift"
+  ],
+  "archive": "current-follow-up.tar.gz",
+  "archiveSha256": "1fcc9472c2da6238418c0069109c8d7e5983a0f0e399e1594964d0a07e38da7a",
+  "archiveBytes": 11512383,
+  "fileCount": 24,
+  "runtimePaths": [
+    "src/lib/browser/public-media-fallback.ts",
+    "src/lib/browser/quang-tu-facebook-videos.ts",
+    "src/lib/components/practice/name-copying/NameCopying.svelte",
+    "src/lib/data/offline-album-plays.json",
+    "src/lib/data/quang-tu-facebook-videos.json",
+    "src/lib/domain/practice/name-copying-copy.ts",
+    "src/lib/domain/practice/name-copying.ts",
+    "src/lib/i18n/copying-interface-en.json",
+    "static/videos/fb-video-1593854504-6.mp4"
+  ],
+  "totalBytes": 12892870,
+  "files": [
+    {
+      "path": "src/lib/browser/public-media-fallback.ts",
+      "baseGitBlobSha1": "fe0127d20934d8323e698669a4ddd9288407feb8",
+      "sha256": "b905dc6af8cb418818e79ecdd3bd0c9e14fce4638471e28fe74fbe4928766ad4",
+      "gitBlobSha1": "693f082889698d8289008f0d0c2e7e8c8f6f7d28",
+      "bytes": 2764,
+      "binary": false,
+      "scope": "runtime"
+    },
+    {
+      "path": "src/lib/browser/quang-tu-facebook-videos.ts",
+      "baseGitBlobSha1": "2b1935e2a3cff660dddd13047a24b4ba7d660cd5",
+      "sha256": "ee2a978af053a71c32d55d009ba0dbca8384733d8fc62f5a6de35592d00aa80b",
+      "gitBlobSha1": "3cc4b26d400080eb5dcd078256a9f7cabc4a5036",
+      "bytes": 8838,
+      "binary": false,
+      "scope": "runtime"
+    },
+    {
+      "path": "src/lib/components/practice/name-copying/NameCopying.svelte",
+      "baseGitBlobSha1": "ade836cd2407b476b6ab6af9bedf3c99be83bc04",
+      "sha256": "91c11c156f71ea54e213d0ef3fda0fc7ae4c4916c5c353c633708079cd61c312",
+      "gitBlobSha1": "759c81f5966690ac65a546d511898ee00f9c1d75",
+      "bytes": 16778,
+      "binary": false,
+      "scope": "runtime"
+    },
+    {
+      "path": "src/lib/data/offline-album-plays.json",
+      "baseGitBlobSha1": "bb25302688edd4c6320cde76a1e4405199c6b5c7",
+      "sha256": "1f6be02354bedc4faeeea3382da24ded0cb8cdfb5ebf585137ea7430b3908471",
+      "gitBlobSha1": "3e7b7c67b0651598c855bfc5b93837369222b428",
+      "bytes": 3943,
+      "binary": false,
+      "scope": "runtime"
+    },
+    {
+      "path": "src/lib/data/quang-tu-facebook-videos.json",
+      "baseGitBlobSha1": "6fc0cce59ee24eaecf3b34214873ca9cfc7bfe19",
+      "sha256": "086f05fb858efc143c4b796e62be238be6609525ff38873b3eb3bfd35850c6de",
+      "gitBlobSha1": "02939254b831c1de4fb6a88ab2cd3b568a1f3f8b",
+      "bytes": 10064,
+      "binary": false,
+      "scope": "runtime"
+    },
+    {
+      "path": "src/lib/domain/practice/name-copying-copy.ts",
+      "baseGitBlobSha1": "078daaa5cf7e29105bac80213642b96ade3dbdd9",
+      "sha256": "f032bcf6c63b641d5ae206a11aa3e4212e6161e1e4ad772492c5a6706c804a6f",
+      "gitBlobSha1": "b91aba8031c2dd84fe54949f2fa26a0e4c6603b2",
+      "bytes": 2849,
+      "binary": false,
+      "scope": "runtime"
+    },
+    {
+      "path": "src/lib/domain/practice/name-copying.ts",
+      "baseGitBlobSha1": "b5b5500b23c335ef0bb259955227ea626ea6b5b7",
+      "sha256": "efb133df2fff3782578324a018e1fea40aede1dc8d3075a0fdc0037eb205ddc7",
+      "gitBlobSha1": "4247813f51e3b5de178316afafe651fa2c8d8ac6",
+      "bytes": 1716,
+      "binary": false,
+      "scope": "runtime"
+    },
+    {
+      "path": "src/lib/i18n/copying-interface-en.json",
+      "baseGitBlobSha1": "b5d82d954b8a05658a26aaf4e74be4e44ca2323c",
+      "sha256": "c9c0bab9ab6693e5cd43441fe4f32f28dacbc73d19c0565f5fe31db3c4bdf5ee",
+      "gitBlobSha1": "1b1577c871e9e20970b9bb7430f23a3d7519b7e6",
+      "bytes": 36530,
+      "binary": false,
+      "scope": "runtime"
+    },
+    {
+      "path": "static/videos/fb-video-1593854504-6.mp4",
+      "baseGitBlobSha1": "ce0a7c6cab0e5e3bd3624df218e014bffb0b056b",
+      "sha256": "560ca739a6c2ac38f9f5b9780902cbb3232999b954cf63b88039d707ea027ae4",
+      "gitBlobSha1": "47908d8033010e1a99fcb92963dc4cdf85f9319d",
+      "bytes": 12598348,
+      "binary": true,
+      "scope": "runtime"
+    },
+    {
+      "path": "tests/e2e/admin-participation.spec.ts",
+      "baseGitBlobSha1": "88b11647add38f9590e10dc97e951af6f09b4671",
+      "sha256": "d94ea02295e4fa7b83d12673945c3b12fbc43b753c013604a52332bcdd8ba45b",
+      "gitBlobSha1": "3a436678d7cb9e3baa486ba07f862177b8d7caad",
+      "bytes": 5784,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 3,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/audio-web-seek-regressions.spec.ts",
+      "baseGitBlobSha1": "63616c06b64f66d43d186168ac13b5089a3a4bb0",
+      "sha256": "20bc5910abe2dbf87c06c3bc56855f59ceca0ce08789540cd82dadc148398cf9",
+      "gitBlobSha1": "7d02404b491bc3659938bfa20d651d579e0ce6cb",
+      "bytes": 4198,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 3,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/bundled-book-illustrations.spec.ts",
+      "baseGitBlobSha1": "e875445abb13290a190b825abb172009168c515d",
+      "sha256": "f1256e2b7181f1e42fc92e0248d455d7bb890125e1fec99c3571007760cdfd82",
+      "gitBlobSha1": "e5b776882d186ce5e2893de717a52295161d8812",
+      "bytes": 11430,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 5,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/copying-layout.spec.ts",
+      "baseGitBlobSha1": "f8bbbad9b0b284e6d7330e5d6c5d7b8cdb588f38",
+      "sha256": "bb508426aac0baf107fd2d36452316560c0df3f2d40c3057a0054527918f62f8",
+      "gitBlobSha1": "dcb3ca0704103f62613e3a2a9dedd4d9209642da",
+      "bytes": 28237,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 14,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/helpers/personal-journal-zen.ts",
+      "baseGitBlobSha1": "09a5e8f932a04fc2947896e36629745105690849",
+      "sha256": "cab194cbd80c70e94ad323ef9ed77f1cc9bd1eae7ba50d32e836a94ded50705f",
+      "gitBlobSha1": "d33d4293ff68a9ce9d322fef0140690ae89075d0",
+      "bytes": 7339,
+      "binary": false,
+      "scope": "test"
+    },
+    {
+      "path": "tests/e2e/name-copying.spec.ts",
+      "baseGitBlobSha1": "accfa340ffd3a32af806a2c7c4178b9821565620",
+      "sha256": "2ff145d561b91a58768cb3b294b0988ffcc187575a0544ad1f39d1eec313e1a2",
+      "gitBlobSha1": "f37cdfaff5949e117b2256769f43d872de422113",
+      "bytes": 17467,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 11,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/native-approved-ui.spec.ts",
+      "baseGitBlobSha1": "a7348069d2f6b68ac182cd53f30b232ace1b9cd8",
+      "sha256": "3fcfc4d383252bc39e4dff8e2f1292c357939f9be1e2899bde6c0adc81a88db8",
+      "gitBlobSha1": "352222ef3791cac463267f965217a9dc1853d8e6",
+      "bytes": 10613,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 4,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/native-chrome-selection.spec.ts",
+      "baseGitBlobSha1": "e8987699b3c4bfcf93d4f72616e9ae69659caa16",
+      "sha256": "1e7e711ccb58437007825ad0b66250ee38143d727503bfb2ceeddd5d6621046b",
+      "gitBlobSha1": "f739a2b3d44dfe632563fc39bbdfb3b7573d9bd9",
+      "bytes": 3471,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 4,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/native-footer-paper.spec.ts",
+      "baseGitBlobSha1": "f8fbed431be86a7c63cfb941620ef8af843695d0",
+      "sha256": "1eb31409129ab57890b5ed71c85791968c8e9f8eeac2491ed3bbb7d0259b3ba9",
+      "gitBlobSha1": "86e36f2fa9ac7fbb42574dc34d2ac0c4a4601c02",
+      "bytes": 18768,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 9,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/startup-branding.spec.ts",
+      "baseGitBlobSha1": "e70f325570e2bb19b15de943ecc30f9f3f26b463",
+      "sha256": "60ebb9e2662f6840174588866d2756c89265d6e584ccae80fd519765244f2aaa",
+      "gitBlobSha1": "839847a153624cdf89c29ca255f606e375cb4025",
+      "bytes": 4497,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 4,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/thanh-tinh-web-seek-regressions.spec.ts",
+      "baseGitBlobSha1": "ecfdfa6116a9e172bef7375dd866f895a433f237",
+      "sha256": "191a577e89de4cf3c355e5f7c8f33437184705be383bbc9ed1b9e805f67dca46",
+      "gitBlobSha1": "ec5eda8b35ffc68d42ca607a32808ea724167dd5",
+      "bytes": 10825,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 5,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/e2e/tu-tap.spec.ts",
+      "baseGitBlobSha1": "f5b5de84e1e3cf3e4788277d90c11bbc575472b6",
+      "sha256": "9b6061bba334d99027b35c63e131cff9a8341394111ee8e39d1102f28d15ee50",
+      "gitBlobSha1": "48734dafa5664cd0aca2c85b60d2b87b66084fdb",
+      "bytes": 51130,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 22,
+      "disabledSourceCalls": 1
+    },
+    {
+      "path": "tests/unit/practice/name-copying.test.ts",
+      "baseGitBlobSha1": "f3d6d1ae9bcd8dae8fe6bfd0515b3d561fceaf33",
+      "sha256": "6eb442c9f4555d9ab23eaeb4cd852ffd9ba5023145508c851883934d22d6250d",
+      "gitBlobSha1": "1b8614855b9f997e462791eea6bf8663d96a2695",
+      "bytes": 25491,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 24,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/unit/public-media-fallback.test.ts",
+      "baseGitBlobSha1": "eccba9be35c98d140fc0d7ce53fe5d1542edb0ea",
+      "sha256": "5dd992132684efc1e5685b3caf14a2b4307aa15b3affa908e65299a2ca91bebc",
+      "gitBlobSha1": "9f2dd5222d124500831e8d869b63d53a07fea8c6",
+      "bytes": 2857,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 4,
+      "disabledSourceCalls": 0
+    },
+    {
+      "path": "tests/unit/reading/quang-tu-facebook-videos.test.ts",
+      "baseGitBlobSha1": "e9c68f240ccafd556f8f84a309b84afc32bf430d",
+      "sha256": "5a94e9425fc34e5a6bdd6d393576884b549491c81a894832c1c146920f8d6fa1",
+      "gitBlobSha1": "ee63cd255ba38e2a6b8e158c48f1bf909924f8d8",
+      "bytes": 8933,
+      "binary": false,
+      "scope": "test",
+      "sourceTestCalls": 10,
+      "disabledSourceCalls": 0
+    }
+  ],
+  "sensitiveFindings": [],
+  "sourceConcurrencyGuard": "All3272 non-excluded source files rehashed after archive close; no additional in-scope source paths"
+}
