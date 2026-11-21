@@ -26,14 +26,55 @@
          evidence("quote-image-native-files-picker", app: app)
          let cancel = app.buttons.matching(NSPredicate(format: "label IN %@", ["Hủy", "Cancel"] as NSArray)).firstMatch
          if cancel.exists && cancel.isHittable {
-@@ -447,6 +448,7 @@
+@@ -447,12 +448,13 @@
          evidence("quote-image-cancel-preserves-dialog", app: app)
          tap(saveImage, app: app)
          XCTAssertTrue(pickerSave.waitForExistence(timeout: 20), "A second export must open a fresh native destination after cancellation")
 +        XCTAssertFalse(saveImage.isEnabled, "The second export must keep its source file until native completion")
          XCTAssertTrue(pickerSave.isHittable)
          pickerSave.tap()
++        XCTAssertTrue(falseSuccess.waitForExistence(timeout: 15), "A completed native save must report success")
          waitUntil("Saving the native PNG must return to the usable quote dialog") {
+             !pickerSave.exists && title.exists && saveImage.exists && saveImage.isEnabled
+         }
+-        XCTAssertTrue(falseSuccess.waitForExistence(timeout: 15), "A completed native save must report success")
+         evidence("quote-image-native-save-completed", app: app)
+         tap(app.buttons["Đóng"].firstMatch, app: app)
+         waitUntil("The quote dialog must still close after canceling native export") { !title.exists }
+@@ -600,9 +602,8 @@
+         evidence("copy-ghost-keyboard-before-typing", app: app)
+ 
+         editor.typeText("TINH KHAU NGHIEP CHON NGON Tu ri tu ri, ma ha tu ri tu tu ri, ta ba ha (3 lan). TINH TAM NGHIEP CHAN NGON An ta pha ba pha, truat da ta pha, dat ma ta pha, ba pha truat do ham (3 lan). TINH PHAP GIOI")
+-        waitUntil("The editor must accept the text and the reference must scroll the later word into view", timeout: 20) {
+-            (editor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]) != nil
+-                && laterWord.exists && reference.frame.contains(laterWord.frame)
++        waitUntil("The reference must scroll the later word into view while typing", timeout: 20) {
++            laterWord.exists && reference.frame.contains(laterWord.frame)
+         }
+         XCTAssertTrue(app.keyboards.firstMatch.exists)
+         XCTAssertEqual(ghost.value as? String, "1")
+@@ -611,7 +612,20 @@
+         if statusBar.exists && !statusBar.frame.isEmpty {
+             XCTAssertGreaterThanOrEqual(header.frame.minY, statusBar.frame.maxY - 1)
+         }
+-        evidence("copy-ghost-keyboard-reference-followed", app: app)
++        let followed = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
++        followed.name = "copy-ghost-keyboard-reference-followed"
++        followed.lifetime = .keepAlways
++        add(followed)
++        // Đóng bàn phím bằng accessory thật trước khi đọc AX value của contenteditable trên iOS.
++        let done = app.toolbars.buttons.matching(NSPredicate(format: "label IN %@", ["Done", "Xong", "Hoàn tất"] as NSArray)).firstMatch
++        XCTAssertTrue(done.waitForExistence(timeout: 5) && done.isHittable)
++        done.tap()
++        waitUntil("The native Done action must dismiss the keyboard") { !app.keyboards.firstMatch.exists }
++        let settledEditor = app.textViews["Tự gõ bản chép của bạn"].firstMatch
++        waitUntil("The editor must retain the typed text after dismissing the keyboard", timeout: 20) {
++            (settledEditor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]) != nil
++        }
++        evidence("copy-ghost-text-retained-after-keyboard", app: app)
+     }
+ 
+     @MainActor
 --- a/src/lib/components/home/DailyDhammapadaCard.svelte
 +++ b/src/lib/components/home/DailyDhammapadaCard.svelte
 @@ -78,7 +78,10 @@
