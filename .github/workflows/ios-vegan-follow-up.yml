@@ -1,0 +1,126 @@
+name: Verify corrected vegetarian native test on both iOS versions
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/ios-vegan-follow-up.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ios-vegan-follow-up-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  vegan:
+    name: Vegetarian native UI on iOS ${{ matrix.ios }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - ios: '18.5'
+            runner: macos-15
+            xcode: /Applications/Xcode_26.3.app/Contents/Developer
+          - ios: '27.0'
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.1.app/Contents/Developer
+    env:
+      DEVELOPER_DIR: ${{ matrix.xcode }}
+      IOS_RUNTIME: ${{ matrix.ios }}
+      MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with: {path: harness, persist-credentials: false}
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Apply complete current source then exact one-line harness fix
+        run: |
+          set -euo pipefail
+          echo "$MOBILE_SOURCE_MANIFEST_SHA256  ../harness/mobile-current-manifest.json" | shasum -a 256 -c -
+          python3 ../harness/apply-current.py .
+          python3 ../harness/apply-harness-fix.py .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Build bundled iOS assets from unchanged application runtime
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          xcodebuild -version | tee build/release-evidence/xcode-version.txt
+          npm ci --no-audit --no-fund
+          npm run build:mobile -- --platform ios
+          mkdir -p build/release-evidence
+          cp qa-evidence/harness-fix-verification.json build/release-evidence/
+      - name: Verify production host isolation
+        run: python3 ../harness/ios-isolate.py enable
+      - name: Select and boot an existing matching iPhone
+        run: |
+          set -euo pipefail
+          test "$TUTAM_QA_HOSTS_ISOLATED" = 1
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,re,sys; d=json.load(sys.stdin)["devices"]; v=re.escape(os.environ["IOS_RUNTIME"].replace(".","-")); matches=[x for k in sorted(d) if re.search(r"\.iOS-"+v+r"(?:-|$)",k) for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]]; assert matches,"No existing simulator for requested runtime"; print(matches[0]["udid"])')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          if ! xcrun simctl list devices booted | grep -Fq "$device"; then xcrun simctl boot "$device"; fi
+          xcrun simctl bootstatus "$device" -b
+      - name: Compile native app and original vegetarian test identifier
+        run: |
+          set -euo pipefail
+          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+            -derivedDataPath build/ios-simulator \
+            -only-testing:AppUITests/NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable \
+            CODE_SIGNING_ALLOWED=NO build-for-testing \
+            > build/release-evidence/build-for-testing.log 2>&1
+      - name: Run only the corrected existing vegetarian case
+        run: |
+          python3 - <<'PY'
+          import importlib.util,sys
+          spec=importlib.util.spec_from_file_location('ios_cases','../harness/run-ios-cases.py')
+          cases=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(cases)
+          # Reuse fresh-install,750s,strict one-case summary and evidence handling.
+          cases.GROUPS={'vegan-follow-up':['NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']}
+          sys.argv=['run-ios-cases.py','--group','vegan-follow-up']
+          raise SystemExit(cases.main())
+          PY
+      - name: Always export readable results and require exact one-pass zero-skip
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import importlib.util,sys
+          spec=importlib.util.spec_from_file_location('ios_cases','../harness/run-ios-cases.py')
+          cases=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(cases)
+          cases.GROUPS={'vegan-follow-up':['NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']}
+          sys.argv=['run-ios-cases.py','--group','vegan-follow-up','--collect-only']
+          raise SystemExit(cases.main())
+          PY
+      - name: Stop simulator before restoring network resolution
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            state=$(xcrun simctl list devices -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; print(next(x["state"] for v in d.values() for x in v if x["udid"]==os.environ["TUTAM_QA_SIMULATOR"]))')
+            if [[ "$state" != Shutdown ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR"; fi
+          fi
+          python3 ../harness/ios-isolate.py restore
+      - name: Upload focused native evidence and harness provenance
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-vegan-follow-up-${{ matrix.ios }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/release-evidence/
+          retention-days: 7
+          if-no-files-found: error
