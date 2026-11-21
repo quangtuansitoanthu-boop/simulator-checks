@@ -1,0 +1,1308 @@
+{
+  "schemaVersion": 1,
+  "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
+  "baselineCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
+  "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
+  "uiFixManifestSha256": "b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295",
+  "currentFollowUpManifestSha256": "9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137",
+  "scope": "Four E2E fixture corrections only; source test titles, locator selectors and declaration counts retained",
+  "archive": "qa-test-follow-up.tar.gz",
+  "archiveSha256": "4dde628b4235767fc3f07423485878130b26a8431281741f39816640e70eb618",
+  "archiveBytes": 10789,
+  "fileCount": 4,
+  "runtimeFileCount": 0,
+  "runtimePaths": [],
+  "totalBytes": 42012,
+  "sensitiveFindings": [],
+  "files": [
+    {
+      "path": "tests/e2e/name-copying.spec.ts",
+      "scope": "e2e-fixture-only",
+      "baseGitBlobSha1": "f37cdfaff5949e117b2256769f43d872de422113",
+      "baseSha256": "2ff145d561b91a58768cb3b294b0988ffcc187575a0544ad1f39d1eec313e1a2",
+      "sha256": "48a5c056f0d1b84eeaaa906cd38cbc6a453741d4254fffe07e25f1b646fe2f0b",
+      "gitBlobSha1": "c2b2d328ccfe7d3db2de9864af9abd7ed796d5cf",
+      "bytes": 17900,
+      "contractsUnchanged": true,
+      "testContract": {
+        "calls": [
+          {
+            "call": "test",
+            "title": "`name-copying sample text remains readable (${theme})`"
+          },
+          {
+            "call": "test.info().outputPath",
+            "title": "`name-copying-sample-${theme}.png`"
+          },
+          {
+            "call": "test",
+            "title": "'valid name copying shows a check and advances after Vietnamese composition finishes'"
+          },
+          {
+            "call": "test",
+            "title": "'name copying works offline and blocks pasted text without losing drafts'"
+          },
+          {
+            "call": "test",
+            "title": "'corrupt name copying data stays untouched and disables editing'"
+          },
+          {
+            "call": "test",
+            "title": "'name copying uses the app English locale'"
+          },
+          {
+            "call": "test",
+            "title": "'name copying keeps guest and member drafts separate across sign-in and sign-out'"
+          },
+          {
+            "call": "test",
+            "title": "'failed local saving keeps the entered text and shows an error'"
+          },
+          {
+            "call": "test",
+            "title": "'name copying leaves space for the native header when the viewport shrinks'"
+          },
+          {
+            "call": "test",
+            "title": "'name copying rolls over successive rounds from a post-reset draft, retains receipts and makes no practice requests'"
+          },
+          {
+            "call": "test",
+            "title": "`name copying layout ${width} ${dark ? 'dark' : 'light'}`"
+          }
+        ],
+        "selectors": [
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-1'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'img'",
+              "{ name: 'Đạt chuẩn', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .total'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.line-mismatch-toast'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'img'",
+              "{ name: 'Đạt chuẩn', exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'img'",
+              "{ name: 'Đạt chuẩn', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-2'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'img'",
+              "{ name: 'Đạt chuẩn', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .total'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'img'",
+              "{ name: 'Đạt chuẩn', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .total'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.line-mismatch-toast'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'img'",
+              "{ name: 'Đạt chuẩn', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-1'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-1'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'heading'",
+              "{ name: 'Copy Buddha and Bodhisattva Names' }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .guide'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .total'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .error'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-topbar'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying h1'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-1'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-1'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'navigation'",
+              "{ name: 'Điều hướng nhanh' }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'link'",
+              "{ name: /Chép danh hiệu Phật, Bồ Tát/ }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'heading'",
+              "{ name: 'Biên chép công đức', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-group-block'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'a[href=\"/tu-tap/chep-kinh\"]'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .total'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-1'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Hoàn thành', exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Hoàn thành & Ghi nhận', exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{ name: 'Xác nhận hoàn thành?', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-copying-title option'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-1'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-1'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "`#name-line-${i}`"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-107'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-107'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-107'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-107'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-107'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "`#name-line-${i}`"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-107'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'combobox'",
+              "{ name: 'Chọn danh hiệu' }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'combobox'",
+              "{ name: 'Chọn danh hiệu' }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'combobox'",
+              "{ name: 'Chọn danh hiệu' }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'combobox'",
+              "{ name: 'Chọn danh hiệu' }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .back'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Quay lại', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying h1'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-topbar'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'img'",
+              "{ name: 'Đạt chuẩn', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .total'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.name-copying .total'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-topbar .tt-back-btn'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#name-line-0'"
+            ]
+          }
+        ],
+        "testDeclarations": 10,
+        "disabledCalls": []
+      }
+    },
+    {
+      "path": "tests/e2e/english-reader-presentation.spec.ts",
+      "scope": "e2e-fixture-only",
+      "baseGitBlobSha1": "4a0f44b5df1bfbb18df3a8cfccf3c5afc7deacb6",
+      "baseSha256": "e829cb10a9b0c4e3033b93866f4700c4d937948dd8e92733e076e4f996cf5a9b",
+      "sha256": "1bda3162c0da16eb41ae56423aa363f80dfd844e08d57c977c9f160f729e7c4c",
+      "gitBlobSha1": "c50ac10dfc0df1e8d8f272f3cfb4901dcaaf53c5",
+      "bytes": 8528,
+      "contractsUnchanged": true,
+      "testContract": {
+        "calls": [
+          {
+            "call": "test",
+            "title": "'single Medicine Master translation stays English from preview into practice'"
+          },
+          {
+            "call": "test",
+            "title": "`cached English reader keeps translation notice and original credits (${width}, ${dark ? 'dark' : 'light'})`"
+          }
+        ],
+        "selectors": [
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-preview'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-content'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.preview-en-draft'"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "'English version is in progress. Showing Vietnamese original below — bundled offline in the app.'",
+              "{ exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-preview__start'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Begin 🙏', exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{ name: 'Start Cultivation?', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-practice .ttp-content'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-en-draft-notice'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-practice .ttp-content'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-content'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.preview-en-draft, .tt-en-draft-notice'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-content'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.daily-dhammapada-card'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'a[href=\"/kinh-sach\"]:visible'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.art-card__open'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.art-card'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-modal'"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "ENGLISH_TRANSLATION_NOTICE",
+              "{ exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.toc-search-input'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.toc-item'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.toc-item'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-content'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-content'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-back'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.toc-item'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-content'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-back'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.toc-item'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-content video source'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.daily-dhammapada-card'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'a[href=\"/kinh-sach\"]:visible'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.art-card__open'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.art-card'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-en-draft'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.toc-search-input'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.toc-item'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.reader-content'"
+            ]
+          }
+        ],
+        "testDeclarations": 2,
+        "disabledCalls": []
+      }
+    },
+    {
+      "path": "tests/e2e/tracker-visual.spec.ts",
+      "scope": "e2e-fixture-only",
+      "baseGitBlobSha1": "63095a08ce0c7c0ed892343c80a7ff555dff25c1",
+      "baseSha256": "96c311083c2a359417835311d0ab6ffd7303e6356ecb6fe9a4d96480bcb6155e",
+      "sha256": "f3a5140389a093903aa9d050f1050d94e400efce3fbbabc02c48896e19d29e54",
+      "gitBlobSha1": "ae8d9e522e19eca23d58c7bedf7fd2a8a16de5cb",
+      "bytes": 9792,
+      "contractsUnchanged": true,
+      "testContract": {
+        "calls": [
+          {
+            "call": "test.describe",
+            "title": "'Practice tracker visual parity'"
+          },
+          {
+            "call": "test.beforeEach",
+            "title": "async ({ page }) => {\n    await page.addInitScript(({ trackerKey, logsKey }) => {\n      localStorage.setItem(trackerKey, '1');\n      localStorage.setItem(logsKey, JSON.stringify([\n        {\n          id: 2,\n          date: '2026-08-01',\n          type: 'Thọ giới',\n          count: 1,\n          note: 'Bát quan trai giới',\n          created: '2026-08-01T08:00:00.000Z',\n        },\n        {\n          id: 1,\n          date: '2026-07-31',\n          type: 'Tụng kinh',\n          count: 12,\n          note: 'Kinh Địa Tạng',\n          created: '2026-07-31T08:00:00.000Z',\n        },\n      ]));\n    }, { trackerKey: principalStorageKey(null, 'ttTrackerOpen'), logsKey: principalStorageKey(null, 'tt_practice_logs_v1') });\n  }"
+          },
+          {
+            "call": "test",
+            "title": "'expanded anatomy and history modal match the production contract'"
+          },
+          {
+            "call": "test",
+            "title": "'tracker preserves existing history across responsive layouts'"
+          },
+          {
+            "call": "test",
+            "title": "'approved tracker actions and manual form stay reachable without saving cancelled drafts'"
+          },
+          {
+            "call": "test.info().outputPath",
+            "title": "'manual-short.png'"
+          },
+          {
+            "call": "test",
+            "title": "'English tracker actions remain single-line on a small phone'"
+          }
+        ],
+        "selectors": [
+          {
+            "method": "locator",
+            "args": [
+              "'#practice-tracker-body'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'button.tt-mode-card--tracker'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-tracker__subtitle'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Ghi nhận công phu', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-tracker__card'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#practice-tracker-body'"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "'Kinh Địa Tạng'",
+              "{ exact:true }"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "'Bát quan trai giới'",
+              "{ exact:true }"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "'01/08/2026'",
+              "{ exact: true }"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "'31/07/2026'",
+              "{ exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-tracker__summary'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Xem mục cũ' }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{ name: 'Lịch sử công phu' }"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "/12 biến/"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "/1 lần/"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "'Kinh Địa Tạng'"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "'01/08/2026'",
+              "{ exact: true }"
+            ]
+          },
+          {
+            "method": "getByText",
+            "args": [
+              "'31/07/2026'",
+              "{ exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'Đóng',exact:true}"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#practice-tracker-body'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'button.tt-mode-card--tracker'"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.tt-tracker__card'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'+ Ghi nhận',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Ghi nhận công phu', exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{ name: 'Ghi nhận công phu' }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'link'",
+              "{ name: 'Tiến độ xác minh →' }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'+ Ghi nhận',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Xem mục cũ' }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{ name: 'Lịch sử công phu' }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Đóng' }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'button.tt-mode-card--tracker'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{name:'Công phu của tôi',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'+ Ghi nhận',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'link'",
+              "{name:'Tiến độ xác minh →',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{name:'Ghi nhận tu tập thủ công',exact:true}"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#practice-log-count'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'Ghi nhận 🙏',exact:true}"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'#practice-log-note'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'Hủy',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'Ghi nhận 🙏',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'Hủy',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'Quay lại Tu Tập',exact:true}"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'button.tt-mode-card--tracker'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{name:'+ Record',exact:true}"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'link'",
+              "{name:'Verified progress →',exact:true}"
+            ]
+          }
+        ],
+        "testDeclarations": 4,
+        "disabledCalls": []
+      }
+    },
+    {
+      "path": "tests/e2e/audio-initial-link.spec.ts",
+      "scope": "e2e-fixture-only",
+      "baseGitBlobSha1": "1d38cebcd2bf92881750be49b9832af7ab6f2448",
+      "baseSha256": "869cdf5822f2dee73def8938244c53d13154f5f836a6a16729a6e71ff90f35b0",
+      "sha256": "0bdc4d774ad8eb1ee798f5e4d5fdde155dd9c121c077f5dce3ba35a05d39227a",
+      "gitBlobSha1": "3c628731b767bb4405b5fa3db3e398f5080d6f9c",
+      "bytes": 5792,
+      "contractsUnchanged": true,
+      "testContract": {
+        "calls": [
+          {
+            "call": "test.afterEach",
+            "title": "async ({ page }) => { await page.unrouteAll({ behavior: 'ignoreErrors' }); }"
+          },
+          {
+            "call": "test",
+            "title": "`initial album ${dismissed ? 'stays closed after dismissal' : 'survives a delayed expiry refresh'}`"
+          },
+          {
+            "call": "test",
+            "title": "'warm native album links replace the mounted album and reopen a dismissed target without extra data requests'"
+          }
+        ],
+        "selectors": [
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{ name: 'Pháp thoại kiểm thử E2E', exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Quay lại', exact: true }"
+            ]
+          },
+          {
+            "method": "locator",
+            "args": [
+              "'.daily-dhammapada-card'"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{ name: albums[0].tieu_de, exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'dialog'",
+              "{ name: albums[1].tieu_de, exact: true }"
+            ]
+          },
+          {
+            "method": "getByRole",
+            "args": [
+              "'button'",
+              "{ name: 'Quay lại', exact: true }"
+            ]
+          }
+        ],
+        "testDeclarations": 2,
+        "disabledCalls": []
+      }
+    }
+  ]
+}
