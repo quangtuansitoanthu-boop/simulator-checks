@@ -32,6 +32,7 @@ jobs:
           python3 ../harness/apply-current.py .
           python3 ../harness/apply-android-test-fix.py .
           python3 ../harness/apply-ui-fixes.py . --runtime-only
+          python3 ../harness/apply-current-follow-up.py . --runtime-only
       - uses: actions/setup-node@v6
         with: { node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json }
       - uses: actions/setup-java@v4
@@ -51,7 +52,9 @@ jobs:
           import hashlib,json,pathlib,os
           packages=[pathlib.Path('android/app/build/outputs/apk/debug/app-debug.apk'),pathlib.Path('android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk')]
           overlay=json.loads(pathlib.Path('qa-evidence/ui-fixes-verification.json').read_text())
+          current=json.loads(pathlib.Path('qa-evidence/current-follow-up-verification.json').read_text())
           result={'manifestSha256':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7','runId':os.environ['GITHUB_RUN_ID'],'androidHarnessSha256':'cc4793ef30879588221df90ace51a50457772617d4eccb59c1e4878083b476b1','uiFixes':overlay,'package':'vn.quangtu.tutam.securityqa','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in packages}}
+          result['currentFollowUp']=current
           pathlib.Path('build/android-qa-packages.json').write_text(json.dumps(result,indent=2))
           PY
       - name: Upload one QA app, instrumentation package and test evidence
@@ -67,5 +70,6 @@ jobs:
             app/build/android-qa-packages.json
             app/qa-evidence/android-harness-verification.json
             app/qa-evidence/ui-fixes-verification.json
+            app/qa-evidence/current-follow-up-verification.json
           retention-days: 7
           if-no-files-found: error
