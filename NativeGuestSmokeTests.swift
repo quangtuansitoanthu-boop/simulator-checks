@@ -301,25 +301,30 @@ class NativeGuestUITestCase: XCTestCase {
     func revealContentControl(_ card: XCUIElement, app: XCUIApplication) {
         func contentViewport() -> CGRect? {
             let frame = app.frame
+            let chromeTolerance: CGFloat = 2
             guard frame.width.isFinite && frame.height.isFinite && frame.minX.isFinite && frame.minY.isFinite,
                   frame.width > 0 && frame.height > 0 else { return nil }
-            let headers = app.otherElements.matching(NSPredicate(format: "label == %@ OR label == %@ OR label == %@", "biểu ngữ", "banner", "Tu tập Phật pháp, điều hướng")).allElementsBoundByIndex
+            let headers = app.otherElements.matching(NSPredicate(format: "label == %@ OR label == %@ OR label == %@ OR label == %@", "biểu ngữ", "banner", "Tu tập Phật pháp, điều hướng", "Tu tập Phật pháp, navigation")).allElementsBoundByIndex
             guard let header = headers.first(where: {
                 let bounds = $0.frame
                 return bounds.width > 0 && bounds.height > 0 && bounds.intersects(frame)
-                    && bounds.minX >= frame.minX && bounds.maxX <= frame.maxX
-                    && bounds.minY <= frame.minY && bounds.maxY > frame.minY && bounds.maxY < frame.midY
+                    && bounds.minX >= frame.minX - chromeTolerance && bounds.maxX <= frame.maxX + chromeTolerance
+                    && bounds.minY <= frame.minY + chromeTolerance && bounds.maxY > frame.minY && bounds.maxY < frame.midY
             }) else { return nil }
             let navigation = app.otherElements.matching(NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "Điều hướng nhanh", "Quick navigation")).firstMatch
             guard navigation.exists else { return nil }
             let footer = navigation.frame
-            // AX thực tế làm tròn đáy footer 875pt trong app 874pt; vẫn dùng đúng đỉnh footer đo được.
-            guard footer.width > 0 && footer.height > 0,
-                  footer.minX >= frame.minX && footer.maxX <= frame.maxX,
+            // iOS AX có thể lệch cạnh chrome dưới 2pt; vùng kéo vẫn dùng khung đo thật đã cắt theo app.
+            guard footer.width > 0 && footer.height > 0 && footer.intersects(frame),
+                  footer.minX >= frame.minX - chromeTolerance && footer.maxX <= frame.maxX + chromeTolerance,
                   footer.minY > frame.midY && footer.minY < frame.maxY,
-                  abs(footer.maxY - frame.maxY) <= 1 else { return nil }
-            let top = header.frame.maxY
-            let bottom = footer.minY
+                  abs(footer.maxY - frame.maxY) <= chromeTolerance else { return nil }
+            let clippedHeader = header.frame.intersection(frame)
+            let clippedFooter = footer.intersection(frame)
+            guard clippedHeader.width > 0 && clippedHeader.height > 0,
+                  clippedFooter.width > 0 && clippedFooter.height > 0 else { return nil }
+            let top = clippedHeader.maxY
+            let bottom = clippedFooter.minY
             guard bottom > top else { return nil }
             return CGRect(x: frame.minX, y: top, width: frame.width, height: bottom - top)
         }
@@ -808,8 +813,9 @@ final class NativeExtendedGuestTests: NativeGuestUITestCase {
             openSettings(app, captureNavigationEvidence: false)
             openAppearance(app)
             let choice = labelledToggle(label, app: app)
+            revealContentControl(choice, app: app)
             tap(choice, app: app)
-            waitUntil("Selected theme must become active") { self.checked(choice) == true }
+            waitUntil("Selected theme must become active") { self.checked(self.labelledToggle(label, app: app)) == true }
             let summary = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Giao diện & ngôn ngữ " + label)).firstMatch
             XCTAssertTrue(summary.waitForExistence(timeout: 15), "Settings summary must render the selected theme before screenshot")
             evidence("settings-" + theme, app: app)
@@ -885,17 +891,23 @@ final class NativePersonalReminderTests: NativeGuestUITestCase {
 
     @MainActor
     private func allowPersonalNotificationPermission(_ app: XCUIApplication) {
+        let sound = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Âm thanh & rung thông báo Âm thanh:")).firstMatch
+        reveal(sound, app: app)
+        tap(sound, app: app)
+        let send = app.buttons["🔔 Gửi thử thông báo mẫu"].firstMatch
+        tap(send, app: app)
         allowExpectedNotificationPermission(app)
+        XCTAssertTrue(send.waitForExistence(timeout: 20), "Native test scheduling must finish before opening personal reminders")
     }
 
     @MainActor
     private func openPersonal(_ app: XCUIApplication, requestPermission: Bool = false) {
+        if requestPermission { allowPersonalNotificationPermission(app) }
         let enabled = app.switches["Ngày Lễ Cá Nhân"].firstMatch
         if !enabled.exists || enabled.frame.width == 0 || enabled.frame.height == 0 {
             let summary = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Ngày lễ cá nhân ")).firstMatch
             tap(summary, app: app)
         }
-        if requestPermission { allowPersonalNotificationPermission(app) }
         reveal(enabled, app: app)
         XCTAssertEqual(checked(enabled), true, "Personal reminders must be enabled for these scenarios")
     }

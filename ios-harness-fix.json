@@ -1,7 +1,85 @@
 {
+  "schemaVersion": 4,
   "path": "ios/App/AppUITests/NativeGuestSmokeTests.swift",
+  "baseManifestSha256": "043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7",
+  "baseCommit": "166d0aeb43341da6f907e096f80a003b49d3be89",
   "baseSha256": "98669eca6c455ce7cc4db2b6fb2a8c4968eaad5e14bfe0998ccdfe6a603a3edd",
-  "sha256": "929c44ca1692211ccdda79ae9317a396484c77dea61b0b0b83d436546821b589",
-  "bytes": 86188,
-  "change": "Only vegetarian menu expected title updated to existing canonical UI label; all native assertions retained"
+  "sha256": "318c4d745d076f6641217db78ee011e85af12f9c29a62fa8a2d1fbcbeed51902",
+  "bytes": 87231,
+  "change": "UI harness only: canonical vegetarian title, bounded AX geometry/header alias, theme reveal/fresh checked lookup, and actual Sound test-notification permission precondition before personal reminders; all 13 test identifiers and their assertions retained.",
+  "helper": {
+    "name": "contentViewport",
+    "baseSha256": "9a86d6df892db1348c2f0360ae8878de5b546a6f102a1d89ab46a99681a735f9",
+    "sha256": "e44cecaf9144fe5370436d689e0ff72158295c57cda5d11a12e01a028724dca4",
+    "baseBytes": 1782,
+    "bytes": 2306,
+    "chromeTolerancePoints": 2,
+    "observedHeaderAlias": "Tu tập Phật pháp, navigation"
+  },
+  "testMethodCount": 13,
+  "testMethods": [
+    "testQuoteImageUsesNativeSavePickerAndCancelKeepsDialogUsable",
+    "testRosaryBackPreservesCountInPortraitAndLandscape",
+    "testMotionSettingPersistsAcrossNativeDeepLinks",
+    "testExistingNotificationButtonDeliversToSystemNotificationCenter",
+    "testNativeScriptureCopyingReferenceAndGhost",
+    "testOfflineLibrarySearchChapterReadingAndLargeTextRotation",
+    "testNativeCatalogExcludesWebOnlyBookAndSearchCanBeCleared",
+    "testLightDarkSettingsAndGuestDeepLinkNavigation",
+    "testMeditationPauseResumeSurvivesNativeBackgrounding",
+    "testPersonalLunarSolarCrudInvalidDateCancelAndPersistence",
+    "testPersonalNearFutureReminderDeliversToSystemAndCanBeDeleted",
+    "testRosaryManualAndAutomaticAudioProgress",
+    "testVegetarianMenuTabsAndRecipeRemainReachable"
+  ],
+  "runtimeSourceChanged": false,
+  "themeSegment": {
+    "testMethod": "testLightDarkSettingsAndGuestDeepLinkNavigation",
+    "baseSha256": "814fdc61eb7ebeeba40c224f1cdcf43234767b9c8b03d2a21717aa81dfe22859",
+    "sha256": "174308d512fac6d751ba0826fce0335d6845fbe1ad61f5a7ace9b7d24c24968f",
+    "baseBytes": 182,
+    "bytes": 263
+  },
+  "unchangedOutsideReviewedSegmentsSha256": "e0d9d3a8e40e15b3874ce2ed7cae039fe30d13b3720b18e0e58fec8286e62ff0",
+  "testBodiesUnchangedExceptReviewedVegetarianAndThemeSegments": true,
+  "personalHelpers": [
+    {
+      "name": "allowPersonalNotificationPermission",
+      "marker": "    private func allowPersonalNotificationPermission(",
+      "baseSha256": "e237b9ba7b8775adf553f6dbd5432817719c287df69aa1bb4c3e4d83efbb4ec0",
+      "sha256": "0483302e2f30125a971bcb79e0553d34bfd594863d428e714b7b6aef01f63dc1",
+      "baseBytes": 134,
+      "bytes": 572
+    },
+    {
+      "name": "openPersonal",
+      "marker": "    private func openPersonal(",
+      "baseSha256": "f278436d0c0b174f5a86e12b21cf3c38d6b683e3b214859b2f1a73e983995db7",
+      "sha256": "364bdaa23501c802ac5167882c005798a9105fc922d74c3cf2f8d86658ce782f",
+      "baseBytes": 636,
+      "bytes": 636
+    }
+  ],
+  "allTestMethodAssertionsUnchanged": true,
+  "baseAssertionCallCounts": {
+    "XCTAssertTrue": 85,
+    "waitUntil": 29,
+    "XCTAssertEqual": 33,
+    "XCTFail": 27,
+    "XCTAssertNotNil": 2,
+    "XCTAssertFalse": 8,
+    "XCTAssertGreaterThanOrEqual": 9,
+    "XCTAssertGreaterThan": 1
+  },
+  "assertionCallCounts": {
+    "XCTAssertTrue": 86,
+    "waitUntil": 29,
+    "XCTAssertEqual": 33,
+    "XCTFail": 27,
+    "XCTAssertNotNil": 2,
+    "XCTAssertFalse": 8,
+    "XCTAssertGreaterThanOrEqual": 9,
+    "XCTAssertGreaterThan": 1
+  },
+  "existingPersonalEnabledAssertionRetainedOnce": true
 }
