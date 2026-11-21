@@ -1,0 +1,188 @@
+name: Current mobile native audit
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/ios-full-audit.yml', 'upload-b64-*.txt', 'manifest.json']
+permissions:
+  contents: read
+concurrency:
+  group: full-mobile-audit-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native:
+    name: Current app on iOS ${{ matrix.ios }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ios: '18.5'
+            runner: macos-15-intel
+            xcode: /Applications/Xcode_26.3.app/Contents/Developer
+          - ios: '27.0'
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.1.app/Contents/Developer
+    env:
+      DEVELOPER_DIR: ${{ matrix.xcode }}
+      TUTAM_BUNDLE_SYNCED: '1'
+      VITE_GOOGLE_IOS_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Apply checksummed current local source
+        run: python3 ../harness/verify-apply.py --app-repo . --transfer-dir ../harness
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Verify Apple toolchain
+        run: |
+          xcodebuild -version
+          pod --version
+      - name: Install locked dependencies and build iOS assets
+        run: |
+          npm ci
+          npm run build:mobile -- --platform ios
+      - name: Isolate production hosts for native tests
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          proxy=subprocess.check_output(['scutil','--proxy'],text=True)
+          assert not re.search(r'(?:HTTPEnable|HTTPSEnable|SOCKSEnable|ProxyAutoConfigEnable|ProxyAutoDiscoveryEnable)\s*:\s*1\b',proxy)
+          assert not any(v for k,v in os.environ.items() if k.lower() in ('http_proxy','https_proxy','all_proxy'))
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          text=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+          hosts.update(re.findall(r'https://([a-z0-9.-]+)',text))
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'mobile-qa-hosts.backup'
+          assert not backup.exists()
+          original=pathlib.Path('/etc/hosts').read_text()
+          backup.write_text(original)
+          lines=[]
+          for line in original.splitlines():
+              address,sep,comment=line.partition('#')
+              parts=address.split()
+              if len(parts)>1 and any(h.lower() in hosts for h in parts[1:]):
+                  aliases=[h for h in parts[1:] if h.lower() not in hosts]
+                  if aliases: lines.append(parts[0]+'\t'+' '.join(aliases))
+              else: lines.append(line)
+          for host in sorted(hosts):
+              assert re.fullmatch(r'[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          subprocess.run(['sudo','dscacheutil','-flushcache'],check=True)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({x[4][0] for x in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(x).is_loopback for x in addresses)
+              proof[host]=addresses
+          pathlib.Path('build/release-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - name: Select and boot an existing simulator
+        env:
+          IOS_RUNTIME: ${{ matrix.ios }}
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; v=os.environ["IOS_RUNTIME"].replace(".","-"); print(next(x["udid"] for k in sorted(d) if ".iOS-"+v in k for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]))')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+      - name: Build native plugins and UI tests
+        run: |
+          xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+            -derivedDataPath build/ios-simulator CODE_SIGNING_ALLOWED=NO build-for-testing
+      - name: Run real native flows
+        env:
+          IOS_RUNTIME: ${{ matrix.ios }}
+        run: |
+          set -euo pipefail
+          args=(
+            -only-testing:AppUITests/NativeGuestSmokeTests/testMotionSettingPersistsAcrossNativeDeepLinks
+            -only-testing:AppUITests/NativeGuestSmokeTests/testQuoteImageUsesNativeSavePickerAndCancelKeepsDialogUsable
+            -only-testing:AppUITests/NativeExtendedGuestTests/testMeditationPauseResumeSurvivesNativeBackgrounding
+          )
+          if [[ "$IOS_RUNTIME" == 18.5 ]]; then
+            args+=(
+              -only-testing:AppUITests/NativeGuestSmokeTests/testRosaryBackPreservesCountInPortraitAndLandscape
+              -only-testing:AppUITests/NativeGuestSmokeTests/testExistingNotificationButtonDeliversToSystemNotificationCenter
+              -only-testing:AppUITests/NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost
+              -only-testing:AppUITests/NativeExtendedGuestTests/testOfflineLibrarySearchChapterReadingAndLargeTextRotation
+              -only-testing:AppUITests/NativeExtendedGuestTests/testNativeCatalogExcludesWebOnlyBookAndSearchCanBeCleared
+              -only-testing:AppUITests/NativeExtendedGuestTests/testLightDarkSettingsAndGuestDeepLinkNavigation
+              -only-testing:AppUITests/NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence
+            )
+          fi
+          status=0
+          index=0
+          for scenario in "${args[@]}"; do
+            index=$((index+1))
+            xcrun simctl uninstall "$TUTAM_QA_SIMULATOR" vn.quangtu.tutam || true
+            xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+              -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
+              -derivedDataPath build/ios-simulator -resultBundlePath "build/release-evidence/NativeAudit-${index}.xcresult" \
+              -parallel-testing-enabled NO -test-timeouts-enabled YES \
+              -default-test-execution-time-allowance 750 -maximum-test-execution-time-allowance 750 \
+              "$scenario" CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee "build/release-evidence/native-test-${index}.log" || status=1
+          done
+          exit "$status"
+      - name: Require executed tests without failure or skips
+        if: always()
+        env:
+          IOS_RUNTIME: ${{ matrix.ios }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          expected=10 if os.environ['IOS_RUNTIME']=='18.5' else 3
+          results=sorted(pathlib.Path('build/release-evidence').glob('NativeAudit-*.xcresult'))
+          assert len(results)==expected,(len(results),expected)
+          summaries=[]
+          for path in results:
+              data=json.loads(subprocess.check_output(['xcrun','xcresulttool','get','test-results','summary','--path',str(path)],text=True))
+              assert data['passedTests']==1 and data['failedTests']==0 and data['skippedTests']==0,data
+              summaries.append(data)
+          pathlib.Path('build/release-evidence/native-summary.json').write_text(json.dumps(summaries,indent=2))
+          print('Verified',len(summaries),'native tests on fresh installs')
+          PY
+      - name: Package simulator app for free web QA
+        if: always()
+        run: |
+          app=build/ios-simulator/Build/Products/Debug-iphonesimulator/App.app
+          if [[ -d "$app" ]]; then
+            (cd "$(dirname "$app")" && zip -qr "$GITHUB_WORKSPACE/app/build/release-evidence/App.app.zip" App.app)
+          fi
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            xcrun simctl io "$TUTAM_QA_SIMULATOR" screenshot build/release-evidence/native-final.png || true
+          fi
+      - name: Upload simulator and execution evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: current-ios-${{ matrix.ios }}-${{ github.run_number }}
+          path: app/build/release-evidence/
+          retention-days: 7
+          if-no-files-found: error
+      - name: Shut down simulator and restore runner network
+        if: always()
+        run: |
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR" || true; fi
+          if [[ -f "$RUNNER_TEMP/mobile-qa-hosts.backup" ]]; then
+            sudo cp "$RUNNER_TEMP/mobile-qa-hosts.backup" /etc/hosts
+            sudo dscacheutil -flushcache
+          fi
