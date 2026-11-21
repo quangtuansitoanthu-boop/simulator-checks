@@ -1,0 +1,42 @@
+--- a/ios/App/AppUITests/NativeGuestSmokeTests.swift
++++ b/ios/App/AppUITests/NativeGuestSmokeTests.swift
+@@ -424,6 +424,7 @@
+         let pickerSave = pickerNavigation.buttons.matching(NSPredicate(format: "label IN %@", ["Lưu", "Save"] as NSArray)).firstMatch
+         XCTAssertTrue(pickerSave.waitForExistence(timeout: 20), "PNG export must present the native Files destination picker instead of a blob navigation")
+         XCTAssertTrue(pickerNavigation.exists, "The save action must belong to the native Files navigation")
++        XCTAssertFalse(saveImage.isEnabled, "The export promise must remain pending while the native picker owns the file")
+         evidence("quote-image-native-files-picker", app: app)
+         let cancel = app.buttons.matching(NSPredicate(format: "label IN %@", ["Hủy", "Cancel"] as NSArray)).firstMatch
+         if cancel.exists && cancel.isHittable {
+@@ -447,6 +448,31 @@
+         evidence("quote-image-cancel-preserves-dialog", app: app)
+         tap(saveImage, app: app)
+         XCTAssertTrue(pickerSave.waitForExistence(timeout: 20), "A second export must open a fresh native destination after cancellation")
++        XCTAssertFalse(saveImage.isEnabled, "The second export must keep its source file until native completion")
++        // Simulator sạch chưa có thư mục người dùng; chọn đích thật qua Files thay vì giả định root ghi được.
++        let more = pickerNavigation.buttons["OverflowBarButtonItem"].firstMatch
++        XCTAssertTrue(more.waitForExistence(timeout: 5))
++        more.tap()
++        evidence("quote-image-native-destination-menu", app: app)
++        let newFolder = app.buttons.matching(NSPredicate(format: "label IN %@", ["Thư mục mới", "New Folder"] as NSArray)).firstMatch
++        XCTAssertTrue(newFolder.waitForExistence(timeout: 5), "Files must expose its actual New Folder action")
++        newFolder.tap()
++        evidence("quote-image-native-new-folder", app: app)
++        let folderField = app.textFields.matching(NSPredicate(format: "identifier != %@", "DOCPicker.filenameTextField")).firstMatch
++        XCTAssertTrue(folderField.waitForExistence(timeout: 5), "The native folder name field must be visible")
++        folderField.tap()
++        folderField.typeText("TuTapPNGQA")
++        let create = app.buttons.matching(NSPredicate(format: "label IN %@", ["Tạo", "Create", "Xong", "Done"] as NSArray)).firstMatch
++        XCTAssertTrue(create.waitForExistence(timeout: 5))
++        create.tap()
++        let folderTitle = pickerNavigation.staticTexts["TuTapPNGQA"].firstMatch
++        if !folderTitle.waitForExistence(timeout: 5) {
++            let folder = app.cells.containing(.staticText, identifier: "TuTapPNGQA").firstMatch
++            XCTAssertTrue(folder.waitForExistence(timeout: 5))
++            folder.tap()
++        }
++        XCTAssertTrue(folderTitle.waitForExistence(timeout: 10), "The export destination must be the created native folder")
++        evidence("quote-image-native-writable-destination", app: app)
+         XCTAssertTrue(pickerSave.isHittable)
+         pickerSave.tap()
+         waitUntil("Saving the native PNG must return to the usable quote dialog") {
