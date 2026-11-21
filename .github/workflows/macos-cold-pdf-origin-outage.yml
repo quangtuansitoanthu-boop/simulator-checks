@@ -1,0 +1,166 @@
+name: Current app cold PDF with owned origin outage
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/macos-cold-pdf-origin-outage.yml']
+permissions:
+  contents: read
+concurrency:
+  group: macos-cold-pdf-origin-outage-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  pdf:
+    name: One real app cold PDF origin outage and reconnect
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      SVELTEKIT_BASE_URL: http://localhost:8787
+      TUTAM_E2E_LOCAL_ONLY: '1'
+      TUTAM_E2E_PREBUILT: '1'
+      TUTAM_E2E_DEV_API: '1'
+      TUTAM_E2E_RUNTIME_PORT: '8787'
+      TUTAM_E2E_PROXY_PORT: '8799'
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      DO_NOT_TRACK: '1'
+      WRANGLER_SEND_METRICS: 'false'
+      WRANGLER_LOG_PATH: ${{ github.workspace }}/app/qa-evidence/cold-pdf-origin-outage/wrangler-user.log
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v6
+        with: {path: harness, persist-credentials: false}
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Apply the exact frozen 3292 source files and existing prerequisite chain
+        run: |
+          set -euo pipefail
+          echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | shasum -a 256 -c -
+          echo '2c91b9b11751a53b9f6ded01aedff82858de6a07335d19789f7ffe786b11bacd  ../harness/moderation-brand-overlay.json' | shasum -a 256 -c -
+          python3 ../harness/apply-current.py "$PWD"
+          python3 ../harness/apply-ui-fixes.py "$PWD"
+          python3 ../harness/apply-current-follow-up.py "$PWD"
+          python3 ../harness/apply-qa-test-follow-up.py "$PWD"
+          python3 ../harness/apply-late-overlay.py "$PWD"
+          echo 'f83aabd62b835cd91290a19b0d7f494be201866ee7113f9e3b308dba42465fc7  ../harness/apply-moderation-brand.py' | shasum -a 256 -c -
+          echo 'ad20b213cefb725b06b0833bdbbb2e91c5ac8516b1acbe0bf24533fb126b3759  ../harness/moderation-brand-overlay.tar.gz' | shasum -a 256 -c -
+          python3 ../harness/apply-moderation-brand.py "$PWD"
+      - uses: actions/setup-node@v6
+        with: {node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json}
+      - name: Install locked stock packages and the matching WebKit runtime
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps webkit
+      - name: Isolate production host resolution throughout build runtime and browser lifetime
+        run: |
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          output=pathlib.Path('qa-evidence/cold-pdf-origin-outage');output.mkdir(parents=True,exist_ok=True)
+          hosts={'media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app','quangtu.vn','www.quangtu.vn'}
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'cold-pdf-origin-hosts.backup'
+          assert not backup.exists();backup.write_bytes(pathlib.Path('/etc/hosts').read_bytes())
+          lines=pathlib.Path('/etc/hosts').read_text().splitlines()
+          for host in sorted(hosts):
+              assert re.fullmatch('[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({value[4][0] for value in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(value).is_loopback for value in addresses)
+              proof[host]=addresses
+          (output/'host-isolation.json').write_text(json.dumps(proof,indent=2)+'\n')
+          PY
+      - name: Build the frozen canonical application once
+        run: npm run build
+      - name: Pin and stage only the standalone case config and frozen guardian fixture
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib,shutil
+          app=pathlib.Path('.').resolve();source=pathlib.Path('../harness').resolve()
+          output=app/'qa-evidence/cold-pdf-origin-outage';output.mkdir(parents=True,exist_ok=True)
+          expected={
+            'webkit-persistent-fixtures.ts':('tests/e2e/helpers/webkit-persistent-fixtures.ts','516c34cc0dcdf51bd07dfe72d9dcbf34090bd038f3b178ec16d2fb35bf092b1b'),
+            'github-cold-pdf-origin-outage.spec.ts':('tests/e2e/github-cold-pdf-origin-outage.spec.ts','5a0e013b971618251bd60bb71bbf534b731dbcf406ddd3b5eaa788b7d887658c'),
+            'github-cold-pdf-origin-outage.config.ts':('tests/e2e/github-cold-pdf-origin-outage.config.ts','3ae6192c61927776120d37462df83e8a1d553e97737a4fdbb7493d63add22923'),
+          }
+          pending=[]
+          for name,(relative,digest) in expected.items():
+              data=(source/name).read_bytes();assert hashlib.sha256(data).hexdigest()==digest,name
+              target=app/relative;assert target.resolve().is_relative_to(app) and not target.exists()
+              pending.append((target,data))
+          assert hashlib.sha256((source/'run-cold-pdf-origin-outage.py').read_bytes()).hexdigest()=='99fe45ddafb9d500ae785c446c3176f720ee5a76fde14428ef23060c3c3d5b84'
+          assert hashlib.sha256((app/'tests/e2e/new-feature-journeys.spec.ts').read_bytes()).hexdigest()=='70ade32abdf1e00e07e578b30a79a56cace5456babdd097490209bbb2104c789','Original cold case must remain unchanged'
+          for target,data in pending:
+              target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
+          shutil.copyfile(app/'qa-evidence/moderation-brand-source-verification.json',output/'source-snapshot-verification.json')
+          (output/'staging.json').write_text(json.dumps({'sourceManifest':'2c91b9b11751a53b9f6ded01aedff82858de6a07335d19789f7ffe786b11bacd','sourceFiles':3292,'originalColdCaseUnchanged':True,'stockPlaywright':'1.62.1','driverBackportApplied':False,'testInputs':{name:digest for name,(_,digest) in expected.items()},'outageKind':'owned_origin_process_group_stopped','equivalentToAirplaneMode':False},indent=2)+'\n')
+          PY
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs';import {createHash} from 'node:crypto';import {webkit} from '@playwright/test';
+          const launcher=webkit.executablePath();const bytes=fs.readFileSync(launcher);
+          fs.writeFileSync('qa-evidence/cold-pdf-origin-outage/binary-provenance.json',JSON.stringify({launcher,launcherSha256:createHash('sha256').update(bytes).digest('hex'),actualBrowserVersionRecordedByCase:true},null,2)+'\n');
+          JS
+      - name: Run one real case with owned process groups and a cold proof reconnect barrier
+        run: python3 ../harness/run-cold-pdf-origin-outage.py "$PWD"
+      - name: Require one real pass with complete outage and cleanup evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          output=pathlib.Path('qa-evidence/cold-pdf-origin-outage');report=output/'results.json'
+          data=json.loads(report.read_text()) if report.exists() else {};cases=[]
+          def walk(suites):
+              for suite in suites:
+                  for spec in suite.get('specs',[]):
+                      for case in spec.get('tests',[]):cases.append({'title':spec.get('title'),'case':case})
+                  walk(suite.get('suites',[]))
+          walk(data.get('suites',[]));stats=data.get('stats',{})
+          final=json.loads((output/'controller-final.json').read_text()) if (output/'controller-final.json').exists() else {}
+          proof=json.loads((output/'cold-proof.json').read_text()) if (output/'cold-proof.json').exists() else {}
+          valid=(len(cases)==1 and cases[0]['title']=='current app cold PDF survives owned origin outage and authenticated reconnect'
+            and stats.get('expected')==1 and stats.get('unexpected')==0 and stats.get('skipped')==0 and stats.get('flaky')==0 and not data.get('errors')
+            and cases[0]['case'].get('expectedStatus')=='passed' and len(cases[0]['case'].get('results',[]))==1
+            and cases[0]['case']['results'][0].get('status')=='passed' and cases[0]['case']['results'][0].get('retry',0)==0
+            and final.get('allStopped') is True and final.get('temporaryPersistenceRemoved') is True and final.get('failure') is None
+            and final.get('phase')=='RECONNECTED' and final.get('runtimeStarts')==2 and final.get('seedCount')==1 and final.get('migrationCount')==1
+            and proof.get('navigation',{}).get('status')==200 and proof.get('navigation',{}).get('fromServiceWorker') is True
+            and proof.get('health',{}).get('failed') is True and proof.get('guestLoginGateVerified') is True
+            and proof.get('privatePdfRetained') is True and proof.get('progressRetained') is True and proof.get('fontRetained') is True
+            and final.get('browserOfflineEmulation') is False and final.get('equivalentToAirplaneMode') is False)
+          summary={'gate':'PASSED' if valid else 'FAILED','expectedCases':1,'collected':len(cases),'stats':stats,'errors':data.get('errors',[]),'controller':final,
+            'outageKind':'owned_origin_process_group_stopped','browserOfflineEmulation':False,'equivalentToAirplaneMode':False,
+            'privatePdfCanvasDuringOutageClaimed':False,'originalEmulationFailureStillRecorded':True,
+            'priorFailedEvidenceRuns':[44913338191,44917102264,44918334834]}
+          output.mkdir(parents=True,exist_ok=True);(output/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,indent=2));assert valid,'One actual app origin-outage case and cleanup must pass without skips or retries'
+          PY
+      - name: Restore host resolution only after every owned group has stopped
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          output=pathlib.Path('qa-evidence/cold-pdf-origin-outage');owner=output/'controller-owner.json';final=output/'controller-final.json'
+          assert not owner.exists() or final.exists() and json.loads(final.read_text()).get('allStopped') is True,'Keep network isolation while any owned process may be alive'
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'cold-pdf-origin-hosts.backup'
+          if backup.exists():
+              subprocess.run(['sudo','cp',str(backup),'/etc/hosts'],check=True)
+              assert pathlib.Path('/etc/hosts').read_bytes()==backup.read_bytes()
+          PY
+      - name: Upload actual UI PDF process barrier and source evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-cold-pdf-origin-outage-${{ github.run_id }}
+          path: app/qa-evidence/cold-pdf-origin-outage/
+          retention-days: 7
+          if-no-files-found: error
