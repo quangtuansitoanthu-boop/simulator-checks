@@ -304,6 +304,161 @@ def collect_notification_os_log(args, case_dir, record):
 # END CI_ONLY_NOTIFICATION_LOG_DIAGNOSTIC
 
 
+# BEGIN CI_ONLY_COPY_LIFECYCLE_LOG_DIAGNOSTIC
+
+def collect_copy_lifecycle_os_log(args, case_dir, record):
+    """Capture bounded, sanitized OS lifecycle evidence for the isolated Copy27 case."""
+    if os.environ.get("TUTAM_QA_COPY_LIFECYCLE_LOGS") != "1":
+        return
+    evidence = {"status": "unavailable", "diagnosticOnly": True,
+                "rawMessagesSaved": False, "byteLimit": 256 * 1024,
+                "queryTimeoutSeconds": 45}
+    warnings = list(record.get("evidenceWarnings", []))
+    process = None
+    selector = None
+    try:
+        workspace = Path(os.environ.get("GITHUB_WORKSPACE", "")).resolve(strict=True)
+        expected_case = "NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost"
+        if (os.environ.get("GITHUB_ACTIONS") != "true"
+                or os.environ.get("GITHUB_REPOSITORY") != "quangtuansitoanthu-boop/simulator-checks"
+                or os.environ.get("TUTAM_QA_HOSTS_ISOLATED") != "1"
+                or os.environ.get("IOS_RUNTIME") != "27.0"
+                or record.get("identifier") != expected_case
+                or Path.cwd().resolve() != workspace / "app"
+                or not re.fullmatch(r"[0-9A-Fa-f-]{36}", args.simulator)
+                or not case_dir.resolve(strict=True).is_relative_to(workspace / "app/build/release-evidence")):
+            raise RuntimeError("scope-guard")
+        if record.get("freshInstallCompleted") is not True:
+            evidence["status"] = "not-installed"
+            return
+        started, finished = record["startedAt"], record["finishedAt"]
+        if not (isinstance(started, (float, int)) and isinstance(finished, (float, int))
+                and 0 <= finished - started <= 1000):
+            raise RuntimeError("invalid-case-window")
+        start_text = datetime.datetime.fromtimestamp(started).strftime("%Y-%m-%d %H:%M:%S")
+        end_text = datetime.datetime.fromtimestamp(finished).strftime("%Y-%m-%d %H:%M:%S")
+        webkit_processes = ("com.apple.WebKit.WebContent", "com.apple.WebKit.Networking",
+                            "com.apple.WebKit.GPU", "WebContent", "Networking", "GPU")
+        system_processes = ("runningboardd", "launchd", "SpringBoard")
+        webkit_predicate = " OR ".join('process == "' + name + '"' for name in webkit_processes)
+        system_predicate = " OR ".join('process == "' + name + '"' for name in system_processes)
+        lifecycle_predicate = '(eventMessage CONTAINS[c] "process" OR eventMessage CONTAINS[c] "WebView" OR eventMessage CONTAINS[c] "navigation" OR eventMessage CONTAINS[c] "connection" OR eventMessage CONTAINS[c] "terminat" OR eventMessage CONTAINS[c] "crash" OR eventMessage CONTAINS[c] "launch" OR eventMessage CONTAINS[c] "exit")'
+        predicate = ('((process == "App" OR (' + webkit_predicate + ')) AND '
+                     + lifecycle_predicate + ') OR ((' + system_predicate
+                     + ') AND eventMessage CONTAINS "' + BUNDLE + '")')
+        command = ["xcrun", "simctl", "spawn", args.simulator, "log", "show",
+                   "--style", "ndjson", "--start", start_text, "--end", end_text,
+                   "--info", "--debug", "--predicate", predicate]
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        deadline = time.monotonic() + 45
+        chunks, received = [], 0
+        timed_out, truncated = False, False
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            events = selector.select(timeout=min(remaining, 0.2))
+            if not events:
+                if process.poll() is not None:
+                    break
+                continue
+            data = os.read(process.stdout.fileno(), min(8192, 256 * 1024 - received + 1))
+            if not data:
+                break
+            available = 256 * 1024 - received
+            chunks.append(data[:available])
+            received += min(len(data), available)
+            if len(data) > available:
+                truncated = True
+                break
+        if timed_out or truncated:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+        else:
+            process.wait(timeout=max(0.1, min(5, deadline - time.monotonic())))
+        # Discard raw messages, paths, URLs, stderr and arbitrary text before writing evidence.
+        operations = ["launch", "launching", "launched", "exit", "exited", "termination",
+                      "terminate", "terminated", "crash", "crashed", "reload", "navigation",
+                      "provisional", "connection", "invalidated", "interrupted", "suspended",
+                      "running", "WebView loaded", "WebView failed to load",
+                      "WebView failed provisional navigation", "WebView process terminated"]
+        rows, unparsed = [], 0
+        for line in b"".join(chunks).decode("utf-8", errors="replace").splitlines():
+            try:
+                item = json.loads(line)
+            except ValueError:
+                unparsed += 1
+                continue
+            if not isinstance(item, dict):
+                unparsed += 1
+                continue
+            name = Path(str(item.get("processImagePath", ""))).name
+            if name not in ("App", *webkit_processes, *system_processes):
+                continue
+            message = item.get("eventMessage", "")
+            timestamp = item.get("timestamp", "")
+            if not isinstance(message, str) or not isinstance(timestamp, str):
+                continue
+            matches_bundle = BUNDLE in message
+            if name in system_processes and not matches_bundle:
+                continue
+            if not re.fullmatch(r"[0-9 T:.+Z-]{10,40}", timestamp):
+                timestamp = "redacted"
+            found = [word for word in operations if re.search(r"(?<![A-Za-z])" + re.escape(word) + r"(?![A-Za-z])", message, re.I)]
+            if not found and not matches_bundle:
+                continue
+            pid = item.get("processID")
+            row = {"timestamp": timestamp, "process": name,
+                   "processID": pid if type(pid) is int and 0 < pid < 2**31 else None,
+                   "messageOperations": found, "matchesGuestBundle": matches_bundle,
+                   "containsPrivacyMarker": "<private>" in message,
+                   "mentionedPIDs": [int(value) for value in re.findall(r"\bpid\s*[:= ]\s*(\d{1,10})\b", message, re.I)[:8] if 0 < int(value) < 2**31],
+                   "errorCodes": [int(value) for value in re.findall(r"\b(?:error(?:\s*code)?|code)\s*[:= ]\s*(-?\d{1,6})\b", message, re.I)[:8]]}
+            rows.append(row)
+        payload = b"".join((json.dumps(row, separators=(",", ":")) + "\n").encode("utf-8") for row in rows)
+        if len(payload) > 256 * 1024:
+            raise RuntimeError("sanitized-output-limit")
+        destination = case_dir / "copy-lifecycle-os-log.sanitized.jsonl"
+        if destination.exists() or destination.is_symlink():
+            raise RuntimeError("refusing-existing-diagnostic")
+        destination.write_bytes(payload)
+        status = "collected" if process.returncode == 0 and not timed_out and not truncated else "partial" if rows else "unavailable"
+        evidence.update({"status": status, "file": destination.name, "bytes": len(payload),
+                         "sha256": hashlib.sha256(payload).hexdigest(), "events": len(rows),
+                         "queryExitCode": process.returncode, "timedOut": timed_out,
+                         "truncated": truncated, "readBytes": received, "unparsedLines": unparsed,
+                         "caseStartedAt": started, "caseFinishedAt": finished,
+                         "processes": ["App", *webkit_processes, *system_processes],
+                         "messagePolicy": "fixed lifecycle vocabulary and bounded numeric PIDs/codes only; no raw free text",
+                         "absenceDoesNotProveCallWasNotMade": True})
+        if status != "collected":
+            warnings.append("copy-lifecycle-os-log: " + status)
+    except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as error:
+        evidence["errorType"] = type(error).__name__
+        warnings.append("copy-lifecycle-os-log: unavailable")
+    finally:
+        try:
+            if selector is not None:
+                selector.close()
+            if process is not None:
+                if process.poll() is None:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait(timeout=5)
+                if process.stdout is not None:
+                    process.stdout.close()
+        except (OSError, subprocess.SubprocessError):
+            evidence["cleanupWarning"] = True
+        record["copyLifecycleOSLog"] = evidence
+        record["evidenceWarnings"] = warnings
+
+# END CI_ONLY_COPY_LIFECYCLE_LOG_DIAGNOSTIC
+
+
 def run_case(args, index, identifier, xctestrun, app):
     case_dir = args.evidence / f"case-{index:02d}"
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -364,6 +519,7 @@ def run_case(args, index, identifier, xctestrun, app):
         record["finishedAt"] = time.time()
         collect_qa_events(args, case_dir, record)
         collect_notification_os_log(args, case_dir, record)
+        collect_copy_lifecycle_os_log(args, case_dir, record)
         write_json(record_path, record)
     return collect(args, index, identifier, record)
 

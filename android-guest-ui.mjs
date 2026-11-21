@@ -98,7 +98,7 @@ let failure;
 try {
   await connect();
   await flow('01-home', async () => {
-    await expect(page.getByRole('link', { name: 'Tu tập Phật pháp — Trang chủ', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Tu Tập Phật Pháp — Trang chủ', exact: true })).toBeVisible();
     const later = page.getByRole('button', { name: 'Để sau', exact: true }).filter({ visible: true });
     if (await later.count()) await later.first().click();
     const calendar = page.getByRole('region', { name: 'Lịch Phật giáo', exact: true });
