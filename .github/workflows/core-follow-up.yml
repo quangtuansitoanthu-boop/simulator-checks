@@ -1,0 +1,97 @@
+name: Full current core with reviewed runtime data
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/core-follow-up.yml']
+permissions:
+  contents: read
+concurrency:
+  group: core-runtime-follow-up-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  core:
+    name: Core only - full 4333 assertions and 11 suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+      DO_NOT_TRACK: '1'
+      TUTAM_RUNTIME_MANIFEST_SHA256: cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - name: Check out immutable current QA harness
+        uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Check out unchanged application baseline
+        uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply the unchanged complete source snapshot
+        run: |
+          set -euo pipefail
+          echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | sha256sum -c -
+          python3 ../harness/apply-current.py .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install locked packages and the existing browser test runtime
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Verify and apply only the seven runtime JSON imports
+        run: |
+          set -euo pipefail
+          echo "$TUTAM_RUNTIME_MANIFEST_SHA256  ../harness/runtime-data-manifest.json" | sha256sum -c -
+          python3 ../harness/apply-runtime-data.py .
+      - name: Run every unchanged core assertion
+        run: |
+          set -euo pipefail
+          mkdir -p qa-evidence
+          npm test 2>&1 | tee qa-evidence/core.log
+      - name: Account for all collected tests even when npm test failed
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,re
+          path=pathlib.Path('qa-evidence/core.log')
+          raw=path.read_text(encoding='utf-8',errors='replace') if path.exists() else ''
+          # CSI color/cursor sequences must be removed before anchoring Tests rows.
+          text=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',raw).replace('\r','')
+          lines=re.findall(r'^\s*Tests\s+([^\n]+)',text,re.M)
+          def count(label):
+              return sum(int(match.group(1)) for line in lines if (match:=re.search(r'(\d+) '+label+r'\b',line)))
+          passed,failed,skipped,todo=(count(label) for label in ('passed','failed','skipped','todo'))
+          summary={'passed':passed,'failed':failed,'skipped':skipped,'todo':todo,
+            'collected':passed+failed+skipped+todo,'suites':len(lines),'suiteSummaries':lines,
+            'typecheckClean':'svelte-check found 0 errors and 0 warnings' in text,
+            'sourceManifestSha256':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7',
+            'runtimeManifestSha256':'cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7'}
+          valid=(len(lines)==11 and passed+failed+skipped+todo==4333 and failed==0 and todo==0
+            and skipped<=3 and passed>=4330 and summary['typecheckClean'])
+          summary['gate']='PASSED' if valid else 'FAILED'
+          output=pathlib.Path('qa-evidence/core-summary.json');output.parent.mkdir(parents=True,exist_ok=True)
+          output.write_text(json.dumps(summary,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps(summary,indent=2))
+          assert valid,'Full core counts, typecheck or unchanged baseline gate did not pass'
+          PY
+      - name: Upload source verification runtime verification and core results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: core-runtime-follow-up-${{ github.run_id }}
+          path: app/qa-evidence/
+          retention-days: 7
+          if-no-files-found: error
