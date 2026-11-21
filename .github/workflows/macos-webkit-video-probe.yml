@@ -1,4 +1,4 @@
-name: macOS WebKit real video resume probe
+name: macOS WebKit video PDF and notification probes
 on:
   workflow_dispatch:
   push:
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   video:
-    name: macOS WebKit landscape video resume and HUD
+    name: macOS WebKit four focused regression journeys
     runs-on: macos-15
     timeout-minutes: 30
     env:
@@ -96,20 +96,29 @@ jobs:
               proof[host]=addresses
           pathlib.Path('build/github-ui-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
           PY
-      - name: Run one real-media case against one supervised local Worker
+      - name: Run four exact journeys against one supervised local Worker
         run: |
           python3 - <<'PY'
-          import json,os,pathlib,signal,subprocess,time,urllib.request
+          import json,os,pathlib,re,signal,subprocess,time,urllib.request
           root=pathlib.Path.cwd();out=root/'build/github-ui-evidence'
-          case='landscape talk video keeps 16:9 inline, exits fullscreen to its list and preserves one player'
-          selection=['node','node_modules/@playwright/test/cli.js','test','--config','tests/e2e/github-webkit.config.ts','--project','desktop-1440-light','tests/e2e/mobile-talk-video-audio.spec.ts','--grep',case+'$','--workers','1']
+          cases={
+              'landscape talk video keeps 16:9 inline, exits fullscreen to its list and preserves one player':'tests/e2e/mobile-talk-video-audio.spec.ts',
+              'cold offline opening requires login and preserves the saved PDF for authenticated reconnect':'tests/e2e/new-feature-journeys.spec.ts',
+              'authenticated saved PDF cards stay read-only during catalog failure and restore authoritative data on reconnect':'tests/e2e/new-feature-journeys.spec.ts',
+              'an internal notification keeps the document and active root audio player':'tests/e2e/notification-navigation.spec.ts',
+          }
+          files=list(dict.fromkeys(cases.values()))
+          selection=['node','node_modules/@playwright/test/cli.js','test',*files,'--config=tests/e2e/github-webkit.config.ts','--project=desktop-1440-light','--grep=(?:'+'|'.join(re.escape(title) for title in cases)+')$','--workers=1','--retries=0']
           env=os.environ.copy();env['PLAYWRIGHT_JSON_OUTPUT_FILE']=str(out/'selected.json')
           subprocess.run(selection+['--list','--reporter=json'],env=env,check=True)
           selected=json.loads((out/'selected.json').read_text())
           def specs(suites):
               return [spec for suite in suites for spec in suite.get('specs',[])]+[spec for suite in suites for spec in specs(suite.get('suites',[]))]
           listed=specs(selected.get('suites',[]))
-          assert len(listed)==1 and listed[0]['title']==case and len(listed[0]['tests'])==1 and not selected.get('errors'),'Expected exactly the existing landscape media case'
+          assert len(listed)==4 and {spec['title'] for spec in listed}==set(cases) and not selected.get('errors'),'Expected exactly the four existing focused journeys'
+          for spec in listed:
+              assert spec['file'].replace('\\','/').endswith(cases[spec['title']]) or spec['file'].replace('\\','/').endswith(cases[spec['title']].removeprefix('tests/e2e/')),'Selected journey file differs'
+              assert len(spec['tests'])==1 and spec['tests'][0]['projectName']=='desktop-1440-light','Each journey must select exactly the existing desktop light project'
           processes=[];result=1;failure=None;readiness={'ready':False,'attempts':[]};stopped=False
           def members(group):
               rows=subprocess.run(['/bin/ps','-axo','pid=,pgid=,stat='],capture_output=True,text=True,check=True,timeout=10).stdout.splitlines()
@@ -167,9 +176,9 @@ jobs:
                   (out/'runtime-readiness.json').write_text(json.dumps(readiness,indent=2))
                   (out/'runtime-stop.json').write_text(json.dumps({'stopped':stopped,'groups':cleanup,'failure':failure},indent=2))
           print(json.dumps({'runtimeReady':readiness['ready'],'testExitCode':result,'stopped':stopped,'failure':failure}))
-          assert stopped and failure is None and result==0,'Focused real-media test or local runtime failed'
+          assert stopped and failure is None and result==0,'Focused four-journey test or local runtime failed'
           PY
-      - name: Require exactly one pass and preserve media diagnostics
+      - name: Require exactly four passes and preserve diagnostics
         if: always()
         run: |
           python3 - <<'PY'
@@ -177,11 +186,11 @@ jobs:
           out=pathlib.Path('build/github-ui-evidence');out.mkdir(parents=True,exist_ok=True);p=out/'results.json'
           data=json.loads(p.read_text()) if p.is_file() else {'errors':['Missing results'],'stats':{}}
           stats=data.get('stats',{})
-          valid=(stats.get('expected')==1 and stats.get('unexpected')==0 and stats.get('skipped')==0 and stats.get('flaky')==0 and not data.get('errors'))
-          summary={'platform':'macos-15','browser':'webkit','expectedCases':1,'stats':stats,'errors':data.get('errors',[]),'gate':'PASSED' if valid else 'FAILED'}
+          valid=(stats.get('expected')==4 and stats.get('unexpected')==0 and stats.get('skipped')==0 and stats.get('flaky')==0 and not data.get('errors'))
+          summary={'platform':'macos-15','browser':'webkit','expectedCases':4,'stats':stats,'errors':data.get('errors',[]),'gate':'PASSED' if valid else 'FAILED'}
           (out/'macos-video-summary.json').write_text(json.dumps(summary,indent=2))
           print(json.dumps(summary,indent=2))
-          assert valid,'One-case WebKit video gate did not pass'
+          assert valid,'Four-case WebKit regression gate did not pass'
           PY
       - name: Restore isolated host resolution only after managed runtime stops
         if: always()
