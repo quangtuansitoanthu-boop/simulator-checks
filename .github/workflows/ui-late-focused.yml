@@ -1,0 +1,355 @@
+name: Focused current UI regression after reviewed late changes
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/ui-late-focused.yml']
+permissions:
+  contents: read
+concurrency:
+  group: late-focused-ui-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # Two independent runners retain the original four projects and capability exclusions.
+  # Core is verified separately by core-follow-up.yml; this matrix owns only UI/backend E2E.
+  ui:
+    name: Focused UI ${{ matrix.engine }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        engine: [original, webkit]
+    permissions:
+      contents: read
+    env:
+      CI: 'true'
+      SVELTEKIT_BASE_URL: http://localhost:8787
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      TUTAM_E2E_LOCAL_ONLY: '1'
+      TUTAM_E2E_PREBUILT: '1'
+      TUTAM_E2E_DEV_API: '1'
+      TUTAM_E2E_RUNTIME_PORT: '8787'
+      TUTAM_E2E_PROXY_PORT: '8799'
+      WRANGLER_SEND_METRICS: 'false'
+      DO_NOT_TRACK: '1'
+      TUTAM_UI_ENGINE: ${{ matrix.engine }}
+      TUTAM_EXPECTED_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+      TUTAM_QA_TEST_FOLLOW_UP_MANIFEST_SHA256: eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa
+      TUTAM_WEBKIT_FIXTURE_SHA256: 516c34cc0dcdf51bd07dfe72d9dcbf34090bd038f3b178ec16d2fb35bf092b1b
+      TUTAM_LATE_MANIFEST_SHA256: 934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd
+      TUTAM_WEBKIT_STAGE_SHA256: 7f0b1d1f538d640d4fe26893be60cd886bbf2fa01aeef7b989f80feff52ee6ef
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - name: Check out immutable QA harness
+        uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Check out application baseline
+        uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify manifest and apply exact current source
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,os,pathlib
+          path=pathlib.Path('../harness/mobile-current-manifest.json')
+          assert hashlib.sha256(path.read_bytes()).hexdigest()==os.environ['TUTAM_EXPECTED_MANIFEST_SHA256'],'Current source manifest mismatch'
+          PY
+          python3 ../harness/apply-current.py "$PWD"
+          python3 ../harness/apply-ui-fixes.py .
+          python3 ../harness/apply-current-follow-up.py .
+          echo "$TUTAM_QA_TEST_FOLLOW_UP_MANIFEST_SHA256  ../harness/qa-test-follow-up.json" | sha256sum -c -
+          python3 ../harness/apply-qa-test-follow-up.py .
+          echo "$TUTAM_LATE_MANIFEST_SHA256  ../harness/late-overlay.json" | sha256sum -c -
+          python3 ../harness/apply-late-overlay.py .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install locked packages and both existing browser engines
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium webkit
+      - name: Build Cloudflare application once for this isolated shard
+        run: npm run build
+      - name: Stage artifact config without changing application tests
+        run: |
+          set -euo pipefail
+          mkdir -p build/github-ui-evidence
+          cp qa-evidence/ui-fixes-verification.json build/github-ui-evidence/
+          cp qa-evidence/current-follow-up-verification.json build/github-ui-evidence/
+          cp qa-evidence/qa-test-follow-up-verification.json build/github-ui-evidence/
+          cp qa-evidence/late-overlay-verification.json build/github-ui-evidence/
+          cp ../harness/ui-webkit.config.ts tests/e2e/github-webkit.config.ts
+          if [[ "$TUTAM_UI_ENGINE" == webkit ]]; then
+            echo "$TUTAM_WEBKIT_FIXTURE_SHA256  ../harness/webkit-persistent-fixtures.ts" | sha256sum -c -
+            echo "$TUTAM_WEBKIT_STAGE_SHA256  ../harness/stage-webkit-persistent.py" | sha256sum -c -
+            python3 ../harness/stage-webkit-persistent.py . --proof build/github-ui-evidence/webkit-persistent-stage-proof.json
+            : # The focused config below retains WebKit exclusions.
+          else
+            : # Original per-spec engines remain unchanged.
+          fi
+          cat > tests/e2e/github-late-focused.config.ts <<'TS'
+          import { defineConfig } from '@playwright/test';
+          import original from './playwright.config';
+          import webkit from './github-webkit.config';
+          const base = process.env.TUTAM_UI_ENGINE === 'webkit' ? webkit : original;
+          // Full test titles include the test filename; retain all cases in these three files.
+          const selected = /name-copying\.spec\.ts|copying-layout\.spec\.ts|meditation-completion\.spec\.ts|cold offline opening requires login and preserves the saved PDF for authenticated reconnect$|authenticated saved PDF cards stay read-only during catalog failure and restore authoritative data on reconnect$|an internal notification keeps the document and active root audio player$|approved book notice keeps the reader open after ten seconds:|shows the approved justified Bookerly story notice without adding API requests:|landscape talk video keeps 16:9 inline, exits fullscreen to its list and preserves one player$/;
+          export default defineConfig({ ...base, grep: selected });
+          TS
+          echo 'TUTAM_UI_CONFIG=tests/e2e/github-late-focused.config.ts' >> "$GITHUB_ENV"
+      - name: Isolate shared backend hosts for browser Node and local worker traffic
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          hosts.update(re.findall(r'https://([a-z0-9.-]+)',pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()))
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'ui-qa-hosts.backup'
+          assert not backup.exists()
+          original=pathlib.Path('/etc/hosts').read_text();backup.write_text(original)
+          lines=[]
+          for line in original.splitlines():
+              address,_,_=line.partition('#');parts=address.split()
+              if len(parts)>1 and any(host.lower() in hosts for host in parts[1:]):
+                  aliases=[host for host in parts[1:] if host.lower() not in hosts]
+                  if aliases:lines.append(parts[0]+'\t'+' '.join(aliases))
+              else:lines.append(line)
+          for host in sorted(hosts):
+              assert re.fullmatch(r'[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({value[4][0] for value in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(value).is_loopback for value in addresses)
+              proof[host]=addresses
+          pathlib.Path('build/github-ui-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - name: Prove all original declarations and exact 67 focused identities
+        run: |
+          set -euo pipefail
+          evidence="$PWD/build/github-ui-evidence"
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$evidence/original-list.json" npx playwright test --config tests/e2e/playwright.config.ts --list --reporter=json
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$evidence/webkit-list.json" npx playwright test --config tests/e2e/github-webkit.config.ts --list --reporter=json
+          PLAYWRIGHT_JSON_OUTPUT_FILE="$evidence/focused-list.json" npx playwright test --config "$TUTAM_UI_CONFIG" --list --reporter=json
+          python3 - <<'PY'
+          import collections,json,os,pathlib
+          out=pathlib.Path('build/github-ui-evidence')
+          full_files={'name-copying.spec.ts','copying-layout.spec.ts','meditation-completion.spec.ts'}
+          journeys={'cold offline opening requires login and preserves the saved PDF for authenticated reconnect','authenticated saved PDF cards stay read-only during catalog failure and restore authoritative data on reconnect'}
+          notification='an internal notification keeps the document and active root audio player'
+          video='landscape talk video keeps 16:9 inline, exits fullscreen to its list and preserves one player'
+          def rows(report):
+              found=[]
+              def visit(suites,entry=None):
+                  for suite in suites:
+                      current=entry or suite.get('file')
+                      for spec in suite.get('specs',[]):
+                          for test in spec['tests']:
+                              found.append({'entry':pathlib.PurePosixPath((current or spec['file']).replace(chr(92),'/')).name,'file':pathlib.PurePosixPath(spec['file'].replace(chr(92),'/')).name,'title':spec['title'],'project':test['projectName']})
+                      visit(suite.get('suites',[]),current)
+              visit(report['suites'])
+              return found
+          def wanted(row):
+              f,t=row['file'],row['title']
+              return f in full_files or f=='new-feature-journeys.spec.ts' and t in journeys or f=='notification-navigation.spec.ts' and t==notification or f=='audio.spec.ts' and (t.startswith('approved book notice keeps the reader open after ten seconds:') or t.startswith('shows the approved justified Bookerly story notice without adding API requests:')) or f=='mobile-talk-video-audio.spec.ts' and t==video
+          key=lambda row:tuple(row[name] for name in ('entry','file','title','project'))
+          original=rows(json.loads((out/'original-list.json').read_text()))
+          webkit=rows(json.loads((out/'webkit-list.json').read_text()))
+          assert len(original)==1168 and len(webkit)==1139,'Unexpected full declaration counts'
+          engine=os.environ['TUTAM_UI_ENGINE'];baseline=webkit if engine=='webkit' else original
+          expected=[row for row in baseline if wanted(row)]
+          focused=rows(json.loads((out/'focused-list.json').read_text()))
+          assert len(expected)==len(focused)==67,'Focused selection count changed'
+          assert len(set(map(key,expected)))==len(expected)
+          assert set(map(key,expected))==set(map(key,focused)),'Focused identities differ from the full original selection'
+          late=json.loads((out/'late-overlay-verification.json').read_text())
+          assert late['status']=='EXACT_LATE_OVERLAY_VERIFIED' and late['fileCount']==7 and late['runtimeFileCount']==3
+          report={'engine':engine,'fullOriginal':len(original),'fullWebkit':len(webkit),'selected':len(focused),'expected':expected,'byFile':dict(collections.Counter(row['file'] for row in focused)),'byProject':dict(collections.Counter(row['project'] for row in focused)),'allowedSkips':[],'lateManifestSha256':late['manifestSha256'],'selectionGate':'PASSED'}
+          (out/'focused-selection.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps({key:value for key,value in report.items() if key!='expected'},indent=2))
+          PY
+      - name: Start one explicit isolated runtime and verify health plus root HTML
+        env:
+          WRANGLER_LOG_PATH: ${{ github.workspace }}/app/build/github-ui-evidence/wrangler-user.log
+        run: |
+          set -euo pipefail
+          evidence="$PWD/build/github-ui-evidence"
+          mkdir -p "$evidence"
+          setsid node tests/e2e/start-local-runtime.mjs > "$evidence/runtime.log" 2>&1 < /dev/null &
+          runtime_pid=$!
+          printf '%s\n' "$runtime_pid" > "$evidence/runtime.pid"
+          echo "TUTAM_QA_RUNTIME_PID=$runtime_pid" >> "$GITHUB_ENV"
+          export TUTAM_QA_RUNTIME_PID="$runtime_pid"
+          python3 - <<'PY'
+          import json,os,pathlib,time,urllib.request
+          output=pathlib.Path('build/github-ui-evidence')
+          pid=int(os.environ['TUTAM_QA_RUNTIME_PID'])
+          started=time.monotonic();deadline=started+120
+          report={'pid':pid,'baseURL':os.environ['SVELTEKIT_BASE_URL'],'dnsOrder':os.environ['NODE_OPTIONS'],'ready':False,'attempts':[]}
+          opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          try:
+              group=os.getpgid(pid)
+              assert group==pid,'Runtime must own its dedicated process group'
+              raw=pathlib.Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split()
+              (output/'runtime-owner.json').write_text(json.dumps({'pid':pid,'pgid':group,'startTicks':raw[19]},indent=2))
+              while time.monotonic()<deadline:
+                  os.kill(pid,0)
+                  state=pathlib.Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split()[0]
+                  assert state!='Z','Runtime exited before readiness'
+                  attempt={'elapsedSeconds':round(time.monotonic()-started,2)}
+                  try:
+                      for label,url in [('health','http://127.0.0.1:8787/api/health'),('root','http://127.0.0.1:8787/')]:
+                          remaining=deadline-time.monotonic()
+                          if remaining<=0:raise TimeoutError('Readiness deadline reached')
+                          request=urllib.request.Request(url,headers={'Host':'localhost:8787','Cache-Control':'no-store'})
+                          with opener.open(request,timeout=min(3,remaining)) as response:
+                              body=response.read(262144);status=response.status;kind=response.headers.get('content-type','')
+                          attempt[label]={'url':url,'status':status,'contentType':kind,'bytes':len(body)}
+                          assert status==200,f'{label} returned {status}'
+                          if label=='root':assert 'text/html' in kind and b'<html' in body.lower(),'Root HTML is not ready'
+                      os.kill(pid,0)
+                      report['ready']=True;report['attempts'].append(attempt)
+                      break
+                  except Exception as error:
+                      attempt['error']=str(error);report['attempts'].append(attempt)
+                  time.sleep(min(1,max(0,deadline-time.monotonic())))
+              assert report['ready'],'Runtime did not serve both health and root HTML within 120 seconds'
+          except Exception as error:
+              report['error']=str(error)
+              raise
+          finally:
+              report['elapsedSeconds']=round(time.monotonic()-started,2)
+              (output/'runtime-readiness.json').write_text(json.dumps(report,indent=2))
+              print(json.dumps({'ready':report['ready'],'pid':pid,'elapsedSeconds':report['elapsedSeconds'],'error':report.get('error')},indent=2))
+          PY
+      - name: Run unchanged selected assertions against fresh local D1 and R2
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/app/build/github-ui-evidence/results.json
+        run: |
+          set -euo pipefail
+          npx playwright test --config "$TUTAM_UI_CONFIG" --workers 1 --reporter=line,json
+      - name: Require all 67 focused assertions with zero skips or flaky results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import collections,json,os,pathlib
+          out=pathlib.Path('build/github-ui-evidence');out.mkdir(parents=True,exist_ok=True)
+          selection_path=out/'focused-selection.json'
+          selection=json.loads(selection_path.read_text()) if selection_path.exists() else {'engine':os.environ.get('TUTAM_UI_ENGINE'),'expected':[],'selectionGate':'MISSING','lateManifestSha256':os.environ.get('TUTAM_LATE_MANIFEST_SHA256')}
+          path=out/'results.json';report=json.loads(path.read_text()) if path.exists() else {'suites':[],'stats':{}}
+          actual=[]
+          def visit(suites,entry=None):
+              for suite in suites:
+                  current=entry or suite.get('file')
+                  for spec in suite.get('specs',[]):
+                      for test in spec['tests']:
+                          result=test.get('results',[])
+                          actual.append({'entry':pathlib.PurePosixPath((current or spec['file']).replace(chr(92),'/')).name,'file':pathlib.PurePosixPath(spec['file'].replace(chr(92),'/')).name,'title':spec['title'],'project':test['projectName'],'status':result[-1]['status'] if result else 'not-run','classification':test.get('status')})
+                  visit(suite.get('suites',[]),current)
+          visit(report['suites'])
+          key=lambda row:tuple(row[name] for name in ('entry','file','title','project'))
+          expected=set(map(key,selection['expected']));seen=set(map(key,actual))
+          counts=collections.Counter(row['status'] for row in actual)
+          valid=selection.get('selectionGate')=='PASSED' and len(actual)==len(seen)==67 and seen==expected and counts.get('passed',0)==67 and not report.get('stats',{}).get('flaky') and all(row['classification']=='expected' for row in actual)
+          summary={'engine':selection['engine'],'selected':67,'selectionGate':selection.get('selectionGate'),'passed':counts.get('passed',0),'failed':sum(value for status,value in counts.items() if status not in ('passed','skipped')),'skipped':counts.get('skipped',0),'flaky':report.get('stats',{}).get('flaky',0),'byStatus':dict(counts),'missing':[list(row) for row in sorted(expected-seen)],'unexpected':[row for row in actual if row['status']!='passed' or row['classification']!='expected'],'lateManifestSha256':selection['lateManifestSha256'],'gate':'PASSED' if valid else 'FAILED'}
+          (out/'focused-summary.json').write_text(json.dumps(summary,indent=2)+'\n');print(json.dumps(summary,indent=2))
+          assert valid,'Focused identities, assertions, skips or flaky gate failed'
+          PY
+      - name: Stop runtime and children before restoring shared host resolution
+        if: always()
+        working-directory: ${{ github.workspace }}/app
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,signal,time
+          output=pathlib.Path('build/github-ui-evidence');output.mkdir(parents=True,exist_ok=True)
+          owner_path=output/'runtime-owner.json';pid_path=output/'runtime.pid'
+          report={'started':pid_path.exists(),'stopped':False}
+          def members(group):
+              found=[]
+              for path in pathlib.Path('/proc').glob('[0-9]*/stat'):
+                  try:
+                      fields=path.read_text().rsplit(')',1)[1].split()
+                      if int(fields[2])==group and fields[0]!='Z':found.append(int(path.parent.name))
+                  except (OSError,ValueError):pass
+              return found
+          try:
+              if pid_path.exists():
+                  pid=int(pid_path.read_text().strip());group=pid
+                  assert pid>1 and group!=os.getpgrp(),'Refusing unrelated process group'
+                  if owner_path.exists():
+                      owner=json.loads(owner_path.read_text())
+                      assert owner['pid']==pid and owner['pgid']==group
+                      state_path=pathlib.Path(f'/proc/{pid}/stat')
+                      if state_path.exists():
+                          current=state_path.read_text().rsplit(')',1)[1].split()
+                          assert current[19]==owner['startTicks'],'Runtime PID was reused; refusing termination'
+                  else:
+                      try:assert os.getpgid(pid)==group,'Runtime did not create its own process group'
+                      except ProcessLookupError:pass
+                  report.update({'pid':pid,'pgid':group,'before':members(group)})
+                  try:os.killpg(group,signal.SIGTERM)
+                  except ProcessLookupError:pass
+                  deadline=time.monotonic()+10
+                  while members(group) and time.monotonic()<deadline:time.sleep(0.2)
+                  if members(group):
+                      try:os.killpg(group,signal.SIGKILL);report['requiredKill']=True
+                      except ProcessLookupError:pass
+                      deadline=time.monotonic()+3
+                      while members(group) and time.monotonic()<deadline:time.sleep(0.1)
+                  report['remaining']=members(group)
+                  assert not report['remaining'],'Runtime group remains active; retain host isolation'
+              report['stopped']=True
+          except Exception as error:
+              report['error']=str(error)
+              raise
+          finally:
+              (output/'runtime-stop.json').write_text(json.dumps(report,indent=2))
+              print(json.dumps(report,indent=2))
+          PY
+      - name: Capture runner memory and remaining processes
+        if: always()
+        run: |
+          mkdir -p build/github-ui-evidence
+          { date -u; free -m; df -h /; ps -eo pid,ppid,pgid,rss,%cpu,args --sort=-rss | sed -n '1,31p'; } > build/github-ui-evidence/runner-state.txt
+          for file in /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.max; do
+            if [[ -f "$file" ]]; then cat "$file" >> build/github-ui-evidence/runner-memory.txt; fi
+          done
+      - name: Upload selection reports result JSON and failure traces
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-late-focused-${{ matrix.engine }}-${{ github.run_id }}
+          path: |
+            app/build/github-ui-evidence/
+            app/test-results/
+            app/tests/e2e/test-results/
+            app/playwright-report/
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Restore isolated runner network
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          state=pathlib.Path('app/build/github-ui-evidence/runtime-stop.json')
+          owner=pathlib.Path('app/build/github-ui-evidence/runtime.pid')
+          assert not owner.exists() or state.exists() and json.loads(state.read_text())['stopped'],'Runtime still owns host isolation'
+          PY
+          if [[ -f "$RUNNER_TEMP/ui-qa-hosts.backup" ]]; then
+            sudo cp "$RUNNER_TEMP/ui-qa-hosts.backup" /etc/hosts
+          fi
