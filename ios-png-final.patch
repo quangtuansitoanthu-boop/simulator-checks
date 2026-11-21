@@ -68,7 +68,7 @@
          }
          XCTAssertTrue(app.keyboards.firstMatch.exists)
          XCTAssertEqual(ghost.value as? String, "1")
-@@ -611,7 +616,20 @@
+@@ -611,7 +616,28 @@
          if statusBar.exists && !statusBar.frame.isEmpty {
              XCTAssertGreaterThanOrEqual(header.frame.minY, statusBar.frame.maxY - 1)
          }
@@ -82,6 +82,14 @@
 +        XCTAssertTrue(done.waitForExistence(timeout: 5) && done.isHittable)
 +        done.tap()
 +        waitUntil("The native Done action must dismiss the keyboard") { !app.keyboards.firstMatch.exists }
++        // AX của iOS có thể kẹt khi TextView còn chứa các span chữ mờ chưa gõ.
++        // Đổi chế độ bằng UI thật; phần chữ đã gõ phải được giữ nguyên khi bỏ lớp chữ mờ.
++        tap(ghost, app: app)
++        XCTAssertEqual(ghost.value as? String, "0")
++        let plainEditor = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
++        plainEditor.name = "copy-typed-text-after-disabling-ghost"
++        plainEditor.lifetime = .keepAlways
++        add(plainEditor)
 +        let settledEditor = app.textViews["Tự gõ bản chép của bạn"].firstMatch
 +        waitUntil("The editor must retain the typed text after dismissing the keyboard", timeout: 20) {
 +            (settledEditor.value as? String)?.range(of: "GIOI", options: [.caseInsensitive, .diacriticInsensitive]) != nil
