@@ -1,4 +1,4 @@
-name: PNG follow-up on iOS 18 and 27
+name: Native PNG and copying final follow-up
 on:
   workflow_dispatch:
   push:
@@ -16,12 +16,16 @@ jobs:
       matrix:
         include:
           - ios: '18.5'
+            label: Copying
+            scenario: AppUITests/NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost
             runner: macos-15
             developer: /Applications/Xcode_26.3.app/Contents/Developer
           - ios: '27.0'
+            label: PNG
+            scenario: AppUITests/NativeGuestSmokeTests/testQuoteImageUsesNativeSavePickerAndCancelKeepsDialogUsable
             runner: xcode-27
             developer: /Applications/Xcode_27.1.app/Contents/Developer
-    name: PNG follow-up only on iOS ${{ matrix.ios }} (1 required test)
+    name: ${{ matrix.label }} on iOS ${{ matrix.ios }} (1 required test)
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -50,10 +54,10 @@ jobs:
           python3 - <<'PY'
           import hashlib,pathlib,subprocess
           patch=pathlib.Path('../harness/ios-png-final.patch')
-          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='3ad5e90c0f47f2ac9954345519f6d6a293e0ba4f8f8ab02df312792c563d203f'
+          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='412b83ef654817cf55b6bffc6d1ebdd87a053db0eafc84ddfc1264f095efbffd'
           subprocess.run(['git','-c','core.autocrlf=false','apply','--check',str(patch)],check=True)
           subprocess.run(['git','-c','core.autocrlf=false','apply',str(patch)],check=True)
-          expected={'ios/App/App/TuTapBridgeViewController.swift': '7a2a0416bd7255724aa3d85072047edb4b565c5937ad0a2b334db3f32a000e2c', 'ios/App/AppUITests/NativeGuestSmokeTests.swift': '9176cce36f63dcda2c58ab2db506ec6ac27e4fb008346090247f53450eb802c9', 'src/lib/components/home/DailyDhammapadaCard.svelte': '11ce404f607c0aa51a582cc12b580e60aa9448a1cdf3d3e7a7c02bcf301fdc63', 'src/lib/components/reader/QuoteCardModal.svelte': '0caf5aac58c55401b54a5693a6eba9560943a7866e7a14c4a27ec4516ed3d05d'}
+          expected={'ios/App/App/TuTapBridgeViewController.swift': '7a2a0416bd7255724aa3d85072047edb4b565c5937ad0a2b334db3f32a000e2c', 'ios/App/AppUITests/NativeGuestSmokeTests.swift': '2a9a27cce83372cdda467e36662cf2822d65f926fb1c9bf3ffb9ef2864937021', 'src/lib/components/home/DailyDhammapadaCard.svelte': '11ce404f607c0aa51a582cc12b580e60aa9448a1cdf3d3e7a7c02bcf301fdc63', 'src/lib/components/reader/QuoteCardModal.svelte': '0caf5aac58c55401b54a5693a6eba9560943a7866e7a14c4a27ec4516ed3d05d'}
           for file,digest in expected.items():
               assert hashlib.sha256(pathlib.Path(file).read_bytes()).hexdigest()==digest,file
           PY
@@ -120,7 +124,7 @@ jobs:
           xcodebuild -quiet -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
             -sdk iphonesimulator -destination "platform=iOS Simulator,id=$TUTAM_QA_SIMULATOR" \
             -derivedDataPath build/ios-simulator CODE_SIGNING_ALLOWED=NO build-for-testing
-      - name: Run PNG follow-up on a fresh install and capture OS logs
+      - name: Run final native follow-up on a fresh install and capture OS logs
         run: |
           set -euo pipefail
           xcrun simctl uninstall "$TUTAM_QA_SIMULATOR" vn.quangtu.tutam || true
@@ -140,7 +144,7 @@ jobs:
             -derivedDataPath build/ios-simulator -resultBundlePath build/release-evidence/NativeAudit-1.xcresult \
             -parallel-testing-enabled NO -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 750 -maximum-test-execution-time-allowance 750 \
-            -only-testing:AppUITests/NativeGuestSmokeTests/testQuoteImageUsesNativeSavePickerAndCancelKeepsDialogUsable \
+            -only-testing:${{ matrix.scenario }} \
             CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee build/release-evidence/native-test-1.txt || status=1
           if ! kill -0 "$log_pid" 2>/dev/null; then
             echo "OS log capture stopped unexpectedly" >&2
@@ -148,7 +152,7 @@ jobs:
           fi
           exit "$status"
       - name: Verify persisted exported PNG in simulator data
-        if: always()
+        if: always() && matrix.label == 'PNG'
         run: |
           python3 - <<'PY'
           import json,os,pathlib,sys
@@ -186,7 +190,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json,os,pathlib,subprocess
-          expected=1  # This job is explicitly a PNG-only follow-up, not full iOS coverage.
+          expected=1  # Each job covers one remaining native case, not the full iOS suite.
           results=sorted(pathlib.Path('build/release-evidence').glob('NativeAudit-*.xcresult'))
           assert len(results)==expected,(len(results),expected)
           summaries=[]
