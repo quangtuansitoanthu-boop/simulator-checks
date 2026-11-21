@@ -1,0 +1,66 @@
+name: Current Android QA build and complete JVM suite
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/android-current-build.yml']
+permissions:
+  contents: read
+jobs:
+  android-build:
+    name: Android build and all 25 JVM tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TUTAM_BUNDLE_SYNCED: '1'
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with: { path: harness, persist-credentials: false }
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply complete frozen source
+        run: |
+          echo '043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7  ../harness/mobile-current-manifest.json' | sha256sum -c -
+          python3 ../harness/apply-current.py .
+      - uses: actions/setup-node@v6
+        with: { node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - name: Build bundled Android assets without backend access
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build:mobile -- --platform android
+      - name: Build isolated QA app and run complete JVM suite
+        run: |
+          bash android/gradlew -p android --no-daemon -Dorg.gradle.jvmargs=-Xmx4096m -PqaApplicationIdSuffix=.securityqa :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Require all 25 JVM test cases
+        run: python3 ../harness/android-report.py android/app/build/test-results/testDebugUnitTest 25 build/android-jvm-summary.json
+      - name: Record exact QA package hashes and source
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,os
+          packages=[pathlib.Path('android/app/build/outputs/apk/debug/app-debug.apk'),pathlib.Path('android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk')]
+          result={'manifestSha256':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7','runId':os.environ['GITHUB_RUN_ID'],'package':'vn.quangtu.tutam.securityqa','files':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in packages}}
+          pathlib.Path('build/android-qa-packages.json').write_text(json.dumps(result,indent=2))
+          PY
+      - name: Upload one QA app, instrumentation package and test evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-qa-packages-${{ github.run_id }}
+          path: |
+            app/android/app/build/outputs/apk/debug/app-debug.apk
+            app/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            app/android/app/build/test-results/testDebugUnitTest/*.xml
+            app/build/android-jvm-summary.json
+            app/build/android-qa-packages.json
+          retention-days: 7
+          if-no-files-found: error
