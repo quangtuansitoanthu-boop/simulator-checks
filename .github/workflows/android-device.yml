@@ -18,8 +18,6 @@ jobs:
     env:
       ANDROID_BUILD_RUN_ID: '44896807996'
       MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
-      ANDROID_AVD_HOME: ${{ runner.temp }}/tutam-ci-avd
-      ANDROID_EMULATOR_HOME: ${{ runner.temp }}/tutam-ci-emulator
       ANDROID_SERIAL: emulator-5554
       QA_PACKAGE: vn.quangtu.tutam.securityqa
     defaults:
@@ -39,6 +37,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_ACTIONS" = true
+          echo "ANDROID_AVD_HOME=$RUNNER_TEMP/tutam-ci-avd" >> "$GITHUB_ENV"
+          echo "ANDROID_EMULATOR_HOME=$RUNNER_TEMP/tutam-ci-emulator" >> "$GITHUB_ENV"
           test "$RUNNER_ENVIRONMENT" = github-hosted
           echo "$MOBILE_SOURCE_MANIFEST_SHA256  ../harness/mobile-current-manifest.json" | sha256sum -c -
           python3 ../harness/apply-current.py .
@@ -201,7 +201,8 @@ jobs:
         if: always()
         run: |
           python3 - <<'PY'
-          import os,pathlib,subprocess,time
+          import os,pathlib,subprocess,time,sys
+          if not os.environ.get("ANDROID_AVD_HOME"): sys.exit(0)
           assert os.environ['GITHUB_ACTIONS']=='true' and os.environ['RUNNER_ENVIRONMENT']=='github-hosted'
           temp=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
           avds=pathlib.Path(os.environ['ANDROID_AVD_HOME']).resolve()
