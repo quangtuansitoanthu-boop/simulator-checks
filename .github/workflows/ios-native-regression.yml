@@ -98,7 +98,7 @@ jobs:
                  'simulatorReadinessPolicy':{'command':'xcrun simctl listapps','timeoutSeconds':120,
                    'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750},
                  'caseRunnerSha256':sha('../harness/run-ios-cases.py')}
-          pathlib.Path('build/release-evidence/source-overlays-proof.json').write_text(json.dumps(proof,indent=2)+'\n')
+          pathlib.Path('qa-evidence/source-overlays-proof.json').write_text(json.dumps(proof,indent=2)+'\n')
           PY
       - uses: actions/setup-node@v6
         with:
@@ -108,51 +108,19 @@ jobs:
       - name: Build iOS web assets and native dependencies
         run: |
           set -euo pipefail
-          mkdir -p build/release-evidence
-          xcodebuild -version | tee build/release-evidence/xcode-version.txt
           npm ci
           npm run build:mobile -- --platform ios
+          mkdir -p build/release-evidence
+          cp qa-evidence/source-overlays-proof.json build/release-evidence/source-overlays-proof.json
+          xcodebuild -version | tee build/release-evidence/xcode-version.txt
       - name: Verify production host isolation
         run: python3 ../harness/ios-isolate.py enable
-      - name: Select and boot an existing matching iPhone
+      - name: Select an existing matching iPhone destination without booting
         run: |
           set -euo pipefail
           test "$TUTAM_QA_HOSTS_ISOLATED" = 1
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,re,sys; d=json.load(sys.stdin)["devices"]; v=re.escape(os.environ["IOS_RUNTIME"].replace(".","-")); matches=[x for k in sorted(d) if re.search(r"\.iOS-"+v+r"(?:-|$)",k) for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]]; assert matches,"No existing simulator for requested runtime"; print(matches[0]["udid"])')
           echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
-          if ! xcrun simctl list devices booted | grep -Fq "$device"; then xcrun simctl boot "$device"; fi
-          xcrun simctl bootstatus "$device" -b
-          TUTAM_QA_READINESS_DEVICE="$device" python3 - <<'PY'
-          import json,os,pathlib,subprocess
-          qa=pathlib.Path('qa-evidence');qa.mkdir(parents=True,exist_ok=True)
-          evidence=pathlib.Path('build/release-evidence');evidence.mkdir(parents=True,exist_ok=True)
-          device=os.environ['TUTAM_QA_READINESS_DEVICE']
-          records=[]
-          def capture(command,name,timeout=30):
-              try:
-                  result=subprocess.run(command,timeout=timeout,check=True,capture_output=True,text=True,errors='replace')
-                  stdout,stderr=result.stdout,result.stderr;ok=True;error=None
-              except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as failure:
-                  stdout,stderr=failure.stdout or '',failure.stderr or '';ok=False;error=str(failure)
-              if isinstance(stdout,bytes):stdout=stdout.decode(errors='replace')
-              if isinstance(stderr,bytes):stderr=stderr.decode(errors='replace')
-              text='COMMAND: '+' '.join(command)+'\nSTDOUT:\n'+stdout+'\nSTDERR:\n'+stderr+'\n'
-              if error:text+='ERROR: '+error+'\n'
-              (qa/name).write_text(text)
-              (evidence/name).write_text(text)
-              records.append({'command':command,'passed':ok,'timeoutSeconds':timeout,'output':name,'error':error})
-              return ok
-          supported=capture(['xcrun','simctl','help','listapps'],'simulator-listapps-help.txt')
-          ready=supported and capture(['xcrun','simctl','listapps',device],'simulator-app-services-ready.txt',120)
-          capture(['xcrun','simctl','list','devices','booted','-j'],'simulator-booted-devices.txt')
-          capture(['xcrun','simctl','list','runtimes','-j'],'simulator-installed-runtimes.txt')
-          capture(['sw_vers'],'simulator-host-os.txt')
-          capture(['xcodebuild','-version'],'simulator-xcode-version.txt')
-          result={'ready':ready,'ios':os.environ['IOS_RUNTIME'],'device':device,'records':records,
-                  'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750}
-          for directory in (qa,evidence):(directory/'simulator-readiness.json').write_text(json.dumps(result,indent=2)+'\n')
-          assert ready,'Simulator app installation services were not ready before native execution'
-          PY
       - name: Build app plugins and all UI tests once
         run: |
           set -euo pipefail
@@ -220,8 +188,9 @@ jobs:
     timeout-minutes: 85
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 8
       matrix:
+        group: [extended, smoke, personal, snapshot]
         platform:
           - ios: '18.5'
             runner: macos-15
@@ -229,7 +198,6 @@ jobs:
           - ios: '27.0'
             runner: xcode-27
             xcode: /Applications/Xcode_27.1.app/Contents/Developer
-        group: [smoke, extended, personal, snapshot]
     env:
       DEVELOPER_DIR: ${{ matrix.platform.xcode }}
       IOS_RUNTIME: ${{ matrix.platform.ios }}
@@ -301,8 +269,13 @@ jobs:
                  'simulatorReadinessPolicy':{'command':'xcrun simctl listapps','timeoutSeconds':120,
                    'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750},
                  'caseRunnerSha256':sha('../harness/run-ios-cases.py')}
-          pathlib.Path('build/release-evidence/source-overlays-proof.json').write_text(json.dumps(proof,indent=2)+'\n')
+          pathlib.Path('qa-evidence/source-overlays-proof.json').write_text(json.dumps(proof,indent=2)+'\n')
           PY
+      - name: Restore verified source proof for this test job
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          cp qa-evidence/source-overlays-proof.json build/release-evidence/source-overlays-proof.json
       - name: Download matching app runner and xctestrun
         uses: actions/download-artifact@v6
         with:
@@ -367,7 +340,8 @@ jobs:
               records.append({'command':command,'passed':ok,'timeoutSeconds':timeout,'output':name,'error':error})
               return ok
           supported=capture(['xcrun','simctl','help','listapps'],'simulator-listapps-help.txt')
-          ready=supported and capture(['xcrun','simctl','listapps',device],'simulator-app-services-ready.txt',120)
+          # Help is diagnostic only. The actual installation-service query always runs once.
+          ready=capture(['xcrun','simctl','listapps',device],'simulator-app-services-ready.txt',120)
           capture(['xcrun','simctl','list','devices','booted','-j'],'simulator-booted-devices.txt')
           capture(['xcrun','simctl','list','runtimes','-j'],'simulator-installed-runtimes.txt')
           capture(['sw_vers'],'simulator-host-os.txt')
