@@ -109,7 +109,7 @@ jobs:
       - name: Prove no default network before any QA process
         run: |
           python3 - <<'PY'
-          import os,pathlib,subprocess,time
+          import json,os,pathlib,subprocess,time
           adb=os.environ['ADB']; serial=os.environ['ANDROID_SERIAL']
           def run(*args):
               return subprocess.run([adb,'-s',serial,*args],capture_output=True,text=True,check=True,timeout=30).stdout
@@ -119,17 +119,22 @@ jobs:
               time.sleep(1)
           else:raise RuntimeError('Emulator did not complete boot')
           assert run('emu','avd','name').splitlines()[0]=='Pixel_7'
-          run('shell','settings','put','global','airplane_mode_on','1')
+          run('shell','cmd','connectivity','airplane-mode','enable')
           run('shell','svc','wifi','disable')
           run('shell','svc','data','disable')
+          run('shell','settings','put','global','mobile_data','0')
           run('shell','input','keyevent','82')
           for _ in range(40):
               connectivity=run('shell','dumpsys','connectivity')
               state={k:run('shell','settings','get','global',k).strip() for k in ['airplane_mode_on','wifi_on','mobile_data']}
               if 'Active default network: none' in connectivity and state=={'airplane_mode_on':'1','wifi_on':'0','mobile_data':'0'}:break
               time.sleep(.5)
-          else:raise RuntimeError('Unable to prove offline emulator')
+          else:
+              pathlib.Path('build/android-device-evidence/connectivity-failed.txt').write_text(connectivity)
+              pathlib.Path('build/android-device-evidence/offline-state-failed.json').write_text(json.dumps(state,indent=2))
+              raise RuntimeError('Unable to prove offline emulator: '+json.dumps(state))
           pathlib.Path('build/android-device-evidence/connectivity-before.txt').write_text(connectivity)
+          pathlib.Path('build/android-device-evidence/offline-state.json').write_text(json.dumps(state,indent=2))
           pathlib.Path('build/android-device-evidence/device-properties.txt').write_text(run('shell','getprop'))
           PY
       - name: Install only verified isolated app and test package
