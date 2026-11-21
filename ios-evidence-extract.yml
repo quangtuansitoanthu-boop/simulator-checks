@@ -1,0 +1,82 @@
+name: Export readable iOS audit evidence
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/ios-evidence-extract.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  export:
+    name: Export existing iOS 27 test attachments
+    runs-on: xcode-27
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Verify Apple result tooling
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun xcresulttool version
+          xcrun xcresulttool export attachments --help
+      - name: Download completed native audit evidence
+        uses: actions/download-artifact@v6
+        with:
+          name: current-ios-27.0-1
+          path: evidence
+          run-id: 44849105165
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+      - name: Export screenshots accessibility text and summaries
+        run: |
+          set -euo pipefail
+          mkdir -p exported
+          for index in 1 2 3; do
+            bundle="evidence/NativeAudit-${index}.xcresult"
+            output="exported/NativeAudit-${index}"
+            test -d "$bundle"
+            mkdir -p "$output/attachments"
+            xcrun xcresulttool get test-results summary --path "$bundle" > "$output/summary.json"
+            xcrun xcresulttool export attachments --path "$bundle" --output-path "$output/attachments"
+          done
+          if [[ -f evidence/native-final.png ]]; then cp evidence/native-final.png exported/native-final.png; fi
+          if [[ -f evidence/host-isolation.json ]]; then cp evidence/host-isolation.json exported/host-isolation.json; fi
+          python3 - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('exported')
+          allowed={'.png','.jpg','.jpeg','.txt','.json'}
+          files=[]
+          omitted={}
+          for item in sorted(root.rglob('*')):
+              if not item.is_file(): continue
+              if item.suffix.lower() not in allowed:
+                  suffix=item.suffix.lower() or '(no extension)'
+                  omitted[suffix]=omitted.get(suffix,0)+1
+                  continue
+              files.append({'path':item.relative_to(root).as_posix(),'bytes':item.stat().st_size})
+          summaries=[]
+          for index in (1,2,3):
+              data=json.loads((root/f'NativeAudit-{index}'/'summary.json').read_text())
+              summaries.append({'bundle':index,'passedTests':data['passedTests'],'failedTests':data['failedTests'],'skippedTests':data['skippedTests']})
+          inventory={'sourceRun':44849105165,'sourceArtifact':'current-ios-27.0-1','summaries':summaries,'uploadedFiles':files,'omittedExtensions':omitted}
+          (root/'export-inventory.json').write_text(json.dumps(inventory,indent=2))
+          print(json.dumps({'summaries':summaries,'readableFiles':len(files),'omittedExtensions':omitted},indent=2))
+          PY
+      - name: Upload only readable evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios27-audit-readable-evidence
+          path: |
+            exported/**/*.png
+            exported/**/*.jpg
+            exported/**/*.jpeg
+            exported/**/*.txt
+            exported/**/*.json
+          retention-days: 7
+          if-no-files-found: error
