@@ -41,7 +41,22 @@
          evidence("quote-image-native-save-completed", app: app)
          tap(app.buttons["Đóng"].firstMatch, app: app)
          waitUntil("The quote dialog must still close after canceling native export") { !title.exists }
-@@ -600,9 +602,8 @@
+@@ -580,8 +582,12 @@
+     func testNativeScriptureCopyingReferenceAndGhost() {
+         let app = launchGuest()
+         app.open(URL(string: "vn.quangtu.tutam:///tu-tap/chep-kinh")!)
+-        tap(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Kinh Địa Tạng Bồ Tát Bổn Nguyện")).firstMatch, app: app)
+-        tap(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Tôi đã đọc, tiếp tục chép")).firstMatch, app: app)
++        let bookChoice = app.switches.matching(NSPredicate(format: "label CONTAINS %@", "Kinh Địa Tạng Bồ Tát Bổn Nguyện")).firstMatch
++        waitUntil("The actual book selector must finish loading before selection", timeout: 20) { bookChoice.exists && bookChoice.isEnabled }
++        tap(bookChoice, app: app)
++        let begin = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Tôi đã đọc, tiếp tục chép")).firstMatch
++        waitUntil("The selected book must expose its ready instruction action", timeout: 20) { begin.exists && begin.isEnabled }
++        tap(begin, app: app)
+ 
+         let ghost = app.switches["Chữ mờ"].firstMatch
+         XCTAssertTrue(ghost.waitForExistence(timeout: 20))
+@@ -600,9 +606,8 @@
          evidence("copy-ghost-keyboard-before-typing", app: app)
  
          editor.typeText("TINH KHAU NGHIEP CHON NGON Tu ri tu ri, ma ha tu ri tu tu ri, ta ba ha (3 lan). TINH TAM NGHIEP CHAN NGON An ta pha ba pha, truat da ta pha, dat ma ta pha, ba pha truat do ham (3 lan). TINH PHAP GIOI")
@@ -53,7 +68,7 @@
          }
          XCTAssertTrue(app.keyboards.firstMatch.exists)
          XCTAssertEqual(ghost.value as? String, "1")
-@@ -611,7 +612,20 @@
+@@ -611,7 +616,20 @@
          if statusBar.exists && !statusBar.frame.isEmpty {
              XCTAssertGreaterThanOrEqual(header.frame.minY, statusBar.frame.maxY - 1)
          }
