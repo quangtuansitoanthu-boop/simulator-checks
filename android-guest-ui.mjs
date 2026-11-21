@@ -114,7 +114,9 @@ try {
     await page.getByRole('button', { name: /Duyên Khởi Của Pháp Hội Giảng Kinh/u }).filter({ visible: true }).first().click();
     await expect(page.locator('.reader-content')).toContainText('Tất cả mọi nơi đều là đạo tràng');
     await page.getByRole('button', { name: 'Chữ lớn hơn', exact: true }).click();
-    await expect(page.locator('.reader-modal').getByText('16px', { exact: true })).toBeVisible();
+    const fontSize = page.locator('.reader-modal .reader-top-font-size');
+    await expect(fontSize).toHaveText('16px');
+    await expect(fontSize).toBeVisible();
   });
   await flow('03-reader-android-back', async () => {
     await back();
