@@ -178,6 +178,34 @@ jobs:
           path: app/build/release-evidence/
           retention-days: 7
           if-no-files-found: error
+      - name: Export readable native test evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p build/readable-evidence
+          for result in build/release-evidence/NativeAudit-*.xcresult; do
+            [[ -d "$result" ]] || continue
+            label=$(basename "$result" .xcresult)
+            output="build/readable-evidence/$label"
+            mkdir -p "$output/attachments"
+            xcrun xcresulttool get test-results summary --path "$result" > "$output/summary.json"
+            xcrun xcresulttool export attachments --path "$result" --output-path "$output/attachments"
+          done
+          if [[ -f build/release-evidence/native-final.png ]]; then cp build/release-evidence/native-final.png build/readable-evidence/native-final.png; fi
+          if [[ -f build/release-evidence/host-isolation.json ]]; then cp build/release-evidence/host-isolation.json build/readable-evidence/host-isolation.json; fi
+      - name: Upload readable native test evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: current-ios-readable-${{ matrix.ios }}-${{ github.run_number }}
+          path: |
+            app/build/readable-evidence/**/*.png
+            app/build/readable-evidence/**/*.jpg
+            app/build/readable-evidence/**/*.jpeg
+            app/build/readable-evidence/**/*.txt
+            app/build/readable-evidence/**/*.json
+          retention-days: 7
+          if-no-files-found: error
       - name: Shut down simulator and restore runner network
         if: always()
         run: |
@@ -186,3 +214,4 @@ jobs:
             sudo cp "$RUNNER_TEMP/mobile-qa-hosts.backup" /etc/hosts
             sudo dscacheutil -flushcache
           fi
+
