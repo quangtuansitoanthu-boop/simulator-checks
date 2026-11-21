@@ -27,7 +27,7 @@ jobs:
       MODERATION_SOURCE_FILE_COUNT: 3292
       TUTAM_RUNTIME_MANIFEST_SHA256: cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7
       TUTAM_TEST_SUPPORT_MANIFEST_SHA256: 4075d004b03ea59c44337cb9296713fc22a6e21bfe9d2c2ebd90dd17d97a8e9c
-      CORE_EXPECTED_COLLECTED: ''
+      CORE_EXPECTED_COLLECTED: '4519'
     defaults:
       run:
         working-directory: app
@@ -175,7 +175,7 @@ jobs:
           log=p/'core.log'
           text=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',log.read_text(errors='replace') if log.exists() else '').replace('\r','')
           expected=['migration','parity','unit','copying-editor','auth','api','server','pwa','jobs','deployment','worker']
-          banner=re.compile(r'^> [^\n]* test:('+('|'.join(expected))+r')\s*$',re.M)
+          banner=re.compile(r'^> \S+@\S+ test:('+('|'.join(expected))+r')\s*$',re.M)
           matches=list(banner.finditer(text));suites=[]
           for index,m in enumerate(matches):
               section=text[m.end():matches[index+1].start() if index+1<len(matches) else len(text)]
