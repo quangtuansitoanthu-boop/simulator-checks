@@ -20,7 +20,7 @@ jobs:
       MOBILE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
       ANDROID_SERIAL: emulator-5554
       QA_PACKAGE: vn.quangtu.tutam.securityqa
-      ANDROID_GUEST_DRIVER_SHA256: f5e26d9d2fcc404eaf016db8e4dd29d9b5a7739f683db2c1b77c2cf252d46812
+      ANDROID_GUEST_DRIVER_SHA256: cfd48268002329f714f1d5ae3067bc2e5f653e3ba3d3bb5292dbc40cca3ab7de
     defaults:
       run:
         working-directory: app
