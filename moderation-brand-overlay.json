@@ -3,41 +3,85 @@
   "phase": "final",
   "readyForPublication": true,
   "snapshotPurpose": "immutable_candidate_for_github_qa",
-  "snapshotRevision": "v2-native-origin-proof",
-  "previousSnapshotManifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
+  "snapshotRevision": "v4-notification-observations-version33",
+  "previousSnapshotManifestSha256": "9fab3ed02bdc69a7fdd70fa2a4e8aa2cfe19a0866c2452d4d2b20180645b17fa",
   "finalCandidateForQA": true,
   "validation": {
-    "fullCurrentCore": {
-      "passed": 4531,
-      "skipped": 3,
-      "source": "coordinator reported local core exit 0; Windows fixture skips retained",
-      "runBySnapshotAgent": false
-    },
-    "currentV2NativeAndUI": "not_yet_verified",
     "claimsApplicationValidated": false,
-    "priorV1Evidence": {
-      "manifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
-      "uiExecutions": 40,
-      "androidNativeAndGuestExecutions": 64,
-      "scope": "v1 candidate unaffected-flow evidence, not a v2 execution"
-    },
-    "userContentCorrection": {
-      "at": "2026-11-21T22:35:09+07:00",
-      "text": "Bước 1: Đọc lời nguyện hương",
-      "paths": [
-        "src/lib/i18n/refuge-release.ts",
-        "tests/unit/refuge-release.test.ts",
-        "tests/e2e/home-refuge-release.spec.ts"
-      ],
-      "effect": "one requested content literal and corresponding expected text hashes only; layout/API unchanged",
-      "postGateFocusedCases": 26,
-      "source": "refuge-release session log and coordinator reported targeted pass"
-    },
-    "focusedNativeOrigin": {
-      "passed": 141,
-      "newCases": 15,
-      "source": "coordinator reported focused local run",
+    "fullCurrentV4Core": "pending; other chat running main core/API and mobile build at capture",
+    "currentV4NativeCompileAndTests": "pending",
+    "coordinatorReportedFocusedEvidence": {
+      "mainCheck": {
+        "errors": 0,
+        "warnings": 0
+      },
+      "nativeNotificationCasesPassed": 49,
       "runBySnapshotAgent": false
+    },
+    "priorNativeEvidenceReportedByCoordinator": {
+      "executions": 26,
+      "passed": 17,
+      "failed": 9,
+      "scope": "Prior diagnostic evidence; not V4 results"
+    },
+    "inheritedV3Validation": {
+      "claimsApplicationValidated": false,
+      "currentV3NativeFixtureCompile": "pending",
+      "currentV3NativeFixtureTests": "pending",
+      "currentV3ApplicationRuntime": "exact V2 bytes; no V3 application fix",
+      "priorV2Evidence": {
+        "manifestSha256": "2c91b9b11751a53b9f6ded01aedff82858de6a07335d19789f7ffe786b11bacd",
+        "expectedMapSha256": "4c9a429cf83f26548bec69ee6c551003ee71d23ad774d044c37588cf8e61ef4f",
+        "core": {
+          "passed": 4533,
+          "skipped": 1,
+          "source": "coordinator reported V2 GitHub core result",
+          "runBySnapshotAgent": false
+        },
+        "androidBuild": {
+          "passedTests": 25,
+          "status": "passed",
+          "source": "coordinator reported V2 Android build",
+          "runBySnapshotAgent": false
+        },
+        "ui40": "rerunning at V3 snapshot request",
+        "androidDevice": "launching V2 at V3 snapshot request",
+        "scope": "V2 evidence only; not a V3 iOS test-fixture compile or execution"
+      },
+      "inheritedV2Validation": {
+        "fullCurrentCore": {
+          "passed": 4531,
+          "skipped": 3,
+          "source": "coordinator reported local core exit 0; Windows fixture skips retained",
+          "runBySnapshotAgent": false
+        },
+        "currentV2NativeAndUI": "not_yet_verified",
+        "claimsApplicationValidated": false,
+        "priorV1Evidence": {
+          "manifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
+          "uiExecutions": 40,
+          "androidNativeAndGuestExecutions": 64,
+          "scope": "v1 candidate unaffected-flow evidence, not a v2 execution"
+        },
+        "userContentCorrection": {
+          "at": "2026-11-21T22:35:09+07:00",
+          "text": "Bước 1: Đọc lời nguyện hương",
+          "paths": [
+            "src/lib/i18n/refuge-release.ts",
+            "tests/unit/refuge-release.test.ts",
+            "tests/e2e/home-refuge-release.spec.ts"
+          ],
+          "effect": "one requested content literal and corresponding expected text hashes only; layout/API unchanged",
+          "postGateFocusedCases": 26,
+          "source": "refuge-release session log and coordinator reported targeted pass"
+        },
+        "focusedNativeOrigin": {
+          "passed": 141,
+          "newCases": 15,
+          "source": "coordinator reported focused local run",
+          "runBySnapshotAgent": false
+        }
+      }
     }
   },
   "productionDeploymentAuthorized": false,
@@ -50,32 +94,35 @@
     "qa-test-follow-up.json": "eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa",
     "late-overlay.json": "934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd"
   },
-  "scope": "User-approved 48-hour mindful moderation and canonical Tu Tap Phat Phap display name; local source/schema only; no production deployment",
+  "scope": "Approved current V4 source: bounded opt-in notification QA phases, compatible fixtures/Swift Add diagnostics, catalog E2E correction, version33/1.2.29 metadata and same-schema numeric play snapshot; no production deployment.",
   "archive": "moderation-brand-overlay.tar.gz",
-  "archiveSha256": "ad20b213cefb725b06b0833bdbbb2e91c5ac8516b1acbe0bf24533fb126b3759",
-  "archiveBytes": 596270,
+  "archiveSha256": "08dd256f4ba63038adbc67942b174ee90aa2f73f60d79a54b9292c2a2be2c86b",
+  "archiveBytes": 670771,
   "baseEffectiveFileCount": 3275,
   "currentExpectedFileCount": 3292,
-  "currentExpectedMapSha256": "4c9a429cf83f26548bec69ee6c551003ee71d23ad774d044c37588cf8e61ef4f",
+  "currentExpectedMapSha256": "056c3d16294ae2fbc7ed1af488749f19da7566da323f0cd3e503004649ec58ab",
   "addedFileCount": 17,
-  "fileCount": 113,
+  "fileCount": 122,
   "classificationCounts": {
+    "native-runtime": 5,
     "native-test": 3,
-    "native-runtime": 4,
-    "build-config": 1,
+    "build-config": 3,
     "schema": 1,
-    "client-runtime": 64,
-    "test": 30,
+    "client-runtime": 66,
+    "test": 34,
     "server-runtime": 10
   },
-  "runtimeFileCount": 80,
+  "runtimeFileCount": 85,
   "runtimePaths": [
+    "android/app/build.gradle",
     "android/app/src/main/java/vn/quangtu/tutam/StartupArtworkView.java",
     "android/app/src/main/java/vn/quangtu/tutam/audio/DharmaAudioPlugin.java",
     "android/app/src/main/res/values/strings.xml",
     "capacitor.config.ts",
     "ios/App/App/Info.plist",
     "migrations/0046-mindful-review.sql",
+    "package-lock.json",
+    "package.json",
     "src/app.html",
     "src/jobs/index.ts",
     "src/lib/browser/admin-access.ts",
@@ -84,6 +131,7 @@
     "src/lib/browser/lunar-notifications.ts",
     "src/lib/browser/mindful-community-client.ts",
     "src/lib/browser/native-api.ts",
+    "src/lib/browser/native-notifications.ts",
     "src/lib/browser/native-talk-audio.ts",
     "src/lib/browser/practice-reminder-service.ts",
     "src/lib/components/admin/community/AdminModerationDecisionDialog.svelte",
@@ -99,6 +147,7 @@
     "src/lib/components/practice/personal/MindfulReviewNotice.svelte",
     "src/lib/components/practice/personal/PersonalJournal.svelte",
     "src/lib/components/practice/personal/PersonalPracticePanel.svelte",
+    "src/lib/components/practice/reminder/PracticeReminderCard.svelte",
     "src/lib/components/reader/QuoteCardModal.svelte",
     "src/lib/content/guide-content.en.ts",
     "src/lib/content/guide-content.ts",
@@ -151,8 +200,19 @@
     "src/service-worker.ts",
     "static/manifest.json"
   ],
-  "totalBytes": 2405964,
+  "totalBytes": 2730601,
   "files": [
+    {
+      "path": "android/app/build.gradle",
+      "operation": "modify",
+      "baseGitBlobSha1": "cb6c7c9751a726f2d1f7a07f0d7b3c482ac02078",
+      "gitBlobSha1": "9a3cf9640ae0fd3b296f375d5fa319f1c5880386",
+      "sha256": "e7edbb210a264b8eacba7b7ffc66f531c087b20bbf578411324016fc637a7f25",
+      "bytes": 4143,
+      "classification": "native-runtime",
+      "runtime": true,
+      "binary": false
+    },
     {
       "path": "android/app/src/androidTest/java/vn/quangtu/tutam/audio/DharmaAudioWidgetInitialLayoutTest.java",
       "operation": "modify",
@@ -234,9 +294,9 @@
       "path": "ios/App/AppUITests/NativeGuestSmokeTests.swift",
       "operation": "modify",
       "baseGitBlobSha1": "845e100078b87aa6b262c3f16b8181c890443cc9",
-      "gitBlobSha1": "11cb0dc429d50d37240890433edf9b2617d7b376",
-      "sha256": "e008f36063c64787a428dfd00fbfe219c76853bedeb87ed1a1c7b5de79a395b2",
-      "bytes": 87750,
+      "gitBlobSha1": "e3f993e96b5dcba698275bd00e3be4b78b8e69f7",
+      "sha256": "57474fbb0a1e233268e39f2dd4c6f5f3cc093417a3b6ddd4e17aea664a397bde",
+      "bytes": 87898,
       "classification": "native-test",
       "runtime": false,
       "binary": false
@@ -249,6 +309,28 @@
       "sha256": "273aaa6de3c31e471f18586d18e19f274599fc691c088a90a1e48178d9e11ee7",
       "bytes": 4579,
       "classification": "schema",
+      "runtime": true,
+      "binary": false
+    },
+    {
+      "path": "package-lock.json",
+      "operation": "modify",
+      "baseGitBlobSha1": "05a2c4452d24f56c0ae5f53a144f969361d8cb8d",
+      "gitBlobSha1": "b0fcfb52e018c17ef43d233e7adf799aeb351072",
+      "sha256": "eb285e451e1ef29eb1f2ae162f1d495e0637a7599d2737a4f836d8d8b5ec8d28",
+      "bytes": 200630,
+      "classification": "build-config",
+      "runtime": true,
+      "binary": false
+    },
+    {
+      "path": "package.json",
+      "operation": "modify",
+      "baseGitBlobSha1": "efc6d02b3e42ce30d60a1ce4544530a47e97fa36",
+      "gitBlobSha1": "6d5f26704e863fd582d9f9f0aac9652ab93a37d9",
+      "sha256": "efa3779ac9334cfda5a5e52f6a8c9f095e3b118d081be7dbd6887884d1780475",
+      "bytes": 4530,
+      "classification": "build-config",
       "runtime": true,
       "binary": false
     },
@@ -352,6 +434,17 @@
       "binary": false
     },
     {
+      "path": "src/lib/browser/native-notifications.ts",
+      "operation": "modify",
+      "baseGitBlobSha1": "51ecc1a1ead39bec4e39972ce00de96e7bf83a06",
+      "gitBlobSha1": "678da9324ba605fd5d4b39cbd5f7ea8b7543e790",
+      "sha256": "4f9058ba1391c0366634ec4a3029e8bfe4d1d44d8662317a051877715acf48de",
+      "bytes": 16766,
+      "classification": "client-runtime",
+      "runtime": true,
+      "binary": false
+    },
+    {
       "path": "src/lib/browser/native-talk-audio.ts",
       "operation": "modify",
       "baseGitBlobSha1": "b31bcbe240be22ac92d25c4f06414091b7437b34",
@@ -366,9 +459,9 @@
       "path": "src/lib/browser/practice-reminder-service.ts",
       "operation": "modify",
       "baseGitBlobSha1": "9506282b4c8c7e470666b58cc5431f1b336cae00",
-      "gitBlobSha1": "b364f820fd224f0e9d15366f14646cf295a587a6",
-      "sha256": "46545d9db41d9624e10e81b166cc1fad59a6ed78f7419b63134fd1fcc2857d51",
-      "bytes": 34165,
+      "gitBlobSha1": "7d84f67ed209a716a825d92a1a3f57d722de41b8",
+      "sha256": "4492c1c081db5de3149c1eb78023aa922ac1642c5102f2420e52d009c61604ff",
+      "bytes": 34450,
       "classification": "client-runtime",
       "runtime": true,
       "binary": false
@@ -517,6 +610,17 @@
       "binary": false
     },
     {
+      "path": "src/lib/components/practice/reminder/PracticeReminderCard.svelte",
+      "operation": "modify",
+      "baseGitBlobSha1": "475f4ee3f977285194f26bb29b21398cd2375be8",
+      "gitBlobSha1": "ebfe0ae653948d174460d8128edda667161953f7",
+      "sha256": "ce619d95268434c907f303f1a3f754b89486b940af2cc0dc43f84eceb2004dd9",
+      "bytes": 67151,
+      "classification": "client-runtime",
+      "runtime": true,
+      "binary": false
+    },
+    {
       "path": "src/lib/components/reader/QuoteCardModal.svelte",
       "operation": "modify",
       "baseGitBlobSha1": "3b05b85b4cb79b9de4b2f1ae8e37ae63faa978b0",
@@ -597,8 +701,8 @@
       "path": "src/lib/data/offline-album-plays.json",
       "operation": "modify",
       "baseGitBlobSha1": "872140f0608bdb8682637666eb785d697883dd34",
-      "gitBlobSha1": "c0da09fd14a31bbe2b4087a2c017c01cfa1d88ce",
-      "sha256": "61b5e4ed343732beb0cc8ee587c561b53840ca7b080a959a9de280a670e795dc",
+      "gitBlobSha1": "77707acb1f065b208aaf5bbe7a49c570f134f6fd",
+      "sha256": "4024292866e8902bd5ca7b2c0f2678adeadc48d8a1a30fa4b3b5a282704ec29c",
       "bytes": 3943,
       "classification": "client-runtime",
       "runtime": true,
@@ -1133,6 +1237,17 @@
       "binary": false
     },
     {
+      "path": "tests/component/practice/ios-reminder-permission.browser.spec.ts",
+      "operation": "modify",
+      "baseGitBlobSha1": "be1d43fe212ff9d40edb3798653d631aed5a5b3e",
+      "gitBlobSha1": "c37374a9f49b22a60d46b2271c283baf529f5618",
+      "sha256": "ad868d368f58093717644115a0b8e1af833ad626b0cb0fab55a1a4778354dc8b",
+      "bytes": 7313,
+      "classification": "test",
+      "runtime": false,
+      "binary": false
+    },
+    {
       "path": "tests/component/practice/mindful-cache-race.browser.spec.ts",
       "operation": "modify",
       "baseGitBlobSha1": "be8dc4c63eff761e42d76673b754e391fa21bced",
@@ -1257,9 +1372,9 @@
       "path": "tests/e2e/new-feature-journeys.spec.ts",
       "operation": "modify",
       "baseGitBlobSha1": "3e24b34c00a75009e521dea7f30497733351f055",
-      "gitBlobSha1": "b1752546e2b1830a3f7c7cca9564ed6e28e5c150",
-      "sha256": "70ade32abdf1e00e07e578b30a79a56cace5456babdd097490209bbb2104c789",
-      "bytes": 48920,
+      "gitBlobSha1": "3d990f3a27fcdca10abbef471e1a9fcfdfc09f9d",
+      "sha256": "5de3f59c5b89f3f8b5986ed3186815c6ec442a414134862a8e007606360cba29",
+      "bytes": 49052,
       "classification": "test",
       "runtime": false,
       "binary": false
@@ -1323,9 +1438,9 @@
       "path": "tests/unit/durable-reminder-native-sync.test.ts",
       "operation": "modify",
       "baseGitBlobSha1": "c8cece6fdf5fa0728d0e5f319f5ccf8b6a41a7f6",
-      "gitBlobSha1": "5f4e48d7d07133bf88e7f51f14fffa52b649d06b",
-      "sha256": "fb6f1ed11b66e880233b0c997ecf5dfa93a4872c4b7e177da16eac68ae20e6cb",
-      "bytes": 5846,
+      "gitBlobSha1": "d54091e6ba7b66d19d1761b474c42e7564de46e2",
+      "sha256": "3f0b4a7bca97ef0108d8dfe44e3ed8f03dc982eaa898b9cb3e9d43e01e75d651",
+      "bytes": 5890,
       "classification": "test",
       "runtime": false,
       "binary": false
@@ -1342,12 +1457,45 @@
       "binary": false
     },
     {
+      "path": "tests/unit/native-notification-permission.test.ts",
+      "operation": "modify",
+      "baseGitBlobSha1": "e077eb61cd135013f21a17b54cf66e355bab56a8",
+      "gitBlobSha1": "f5a89be4385349c95a2e13917ce4fdfcc71ed6e9",
+      "sha256": "a7c6da15cefdea63a7dc0722b7af7e7782c85e8f58e208d84731f2830091fb0a",
+      "bytes": 4993,
+      "classification": "test",
+      "runtime": false,
+      "binary": false
+    },
+    {
       "path": "tests/unit/native-session-mutation-transport.test.ts",
       "operation": "modify",
       "baseGitBlobSha1": "aece532c03b533102a3917267f5384b4a17b6ef6",
       "gitBlobSha1": "c50a004a477d0de41da9fa8eb34ec9477e49e884",
       "sha256": "2aa4dfc071395b87df19ec0f543901d0bfe1e38b13d13070afbf018341369aa7",
       "bytes": 24415,
+      "classification": "test",
+      "runtime": false,
+      "binary": false
+    },
+    {
+      "path": "tests/unit/practice-reminder-service.test.ts",
+      "operation": "modify",
+      "baseGitBlobSha1": "81cfa010632a9db70472a9a2f4e06a1d1e99dae6",
+      "gitBlobSha1": "b0364d3ed08c806fd7cda4dbabd867a9ce838e5e",
+      "sha256": "4ad684ca2788c6ceae7bb7c0030402dd3a0625d41325a5adbd50b7222d314a84",
+      "bytes": 14949,
+      "classification": "test",
+      "runtime": false,
+      "binary": false
+    },
+    {
+      "path": "tests/unit/practice-reminder-test-feedback.test.ts",
+      "operation": "modify",
+      "baseGitBlobSha1": "bc6251ae99733b30504368c213c4c02cd1e0a1b3",
+      "gitBlobSha1": "f699aa537cda20cac7c67be187108c4723b1d1a4",
+      "sha256": "518ee6fa81ca20ddf53c6be96364ba780bc6fcabb123e2809ca9fca45ebd5a27",
+      "bytes": 3553,
       "classification": "test",
       "runtime": false,
       "binary": false
@@ -1453,5 +1601,83 @@
     "changedDuringCapture": [],
     "newEligibleDuringCapture": [],
     "matched": true
+  },
+  "previousSnapshotExpectedMapSha256": "ba7f12b37b6012ad8871bc97b550d5383f4e9620c4d2734069e6c2f696586317",
+  "capturedAtUtc": "2026-11-22T12:02:17.471548+00:00",
+  "nativeQaObservationRevision": {
+    "changedFromV3Paths": [
+      "android/app/build.gradle",
+      "ios/App/AppUITests/NativeGuestSmokeTests.swift",
+      "package-lock.json",
+      "package.json",
+      "src/lib/browser/native-notifications.ts",
+      "src/lib/browser/practice-reminder-service.ts",
+      "src/lib/components/practice/reminder/PracticeReminderCard.svelte",
+      "src/lib/data/offline-album-plays.json",
+      "tests/component/practice/ios-reminder-permission.browser.spec.ts",
+      "tests/e2e/new-feature-journeys.spec.ts",
+      "tests/unit/durable-reminder-native-sync.test.ts",
+      "tests/unit/native-notification-permission.test.ts",
+      "tests/unit/practice-reminder-service.test.ts",
+      "tests/unit/practice-reminder-test-feedback.test.ts"
+    ],
+    "changedFromV3PathCount": 14,
+    "unchangedFromV3Paths": 3278,
+    "approvedQaObservationRuntimePaths": [
+      "src/lib/browser/native-notifications.ts",
+      "src/lib/browser/practice-reminder-service.ts",
+      "src/lib/components/practice/reminder/PracticeReminderCard.svelte"
+    ],
+    "qaStaticProofSha256": "df11d883c6575f9eb1777349afcf151b05a64229911ccfac0f6a5d92cc8e2fd2",
+    "qaPhaseRowsPerDocumentLimit": 96,
+    "defaultWithoutOptInHandler": "No event writes, added HTTP/D1/SQL, timers, retries, prompts or SDK calls. Optional phase writes swallow diagnostics failures.",
+    "newHttpApiRequests": 0,
+    "newD1Requests": 0,
+    "newSqlStatements": 0,
+    "newD1Rows": 0,
+    "iosHarnessSha256": "57474fbb0a1e233268e39f2dd4c6f5f3cc093417a3b6ddd4e17aea664a397bde",
+    "iosHarnessChanges": "Two evidence calls immediately before/after existing Add tap; reverse to exact V3 fixture;13 test IDs/assertions unchanged.",
+    "googlePlayVersion": {
+      "versionCode": 33,
+      "versionName": "1.2.29",
+      "previousVersionCode": 32,
+      "previousVersionName": "1.2.28",
+      "onlyVersionLiteralsChanged": true,
+      "dependencyGraphUnchanged": true,
+      "sourceBeforeCoreManifestSha256": "56880d2c55be9fed3be29ea4543c3c56abef324c83cc4f6a01af0cadb535134f",
+      "sourceBeforeCoreAt": "2026-11-22T11:55:45.420Z",
+      "matchingTrackedPaths": {
+        "src/lib/browser/native-notifications.ts": true,
+        "src/lib/browser/practice-reminder-service.ts": true,
+        "src/lib/components/practice/reminder/PracticeReminderCard.svelte": true,
+        "tests/unit/native-notification-permission.test.ts": true,
+        "tests/unit/practice-reminder-service.test.ts": true,
+        "tests/unit/durable-reminder-native-sync.test.ts": true,
+        "tests/unit/practice-reminder-test-feedback.test.ts": true,
+        "tests/component/practice/ios-reminder-permission.browser.spec.ts": true,
+        "ios/App/AppUITests/NativeGuestSmokeTests.swift": false,
+        "tests/e2e/new-feature-journeys.spec.ts": true,
+        "android/app/build.gradle": true,
+        "package.json": true,
+        "package-lock.json": true,
+        "src/lib/data/offline-album-plays.json": true
+      }
+    },
+    "offlineAlbumPlays": {
+      "path": "src/lib/data/offline-album-plays.json",
+      "sha256": "4024292866e8902bd5ca7b2c0f2678adeadc48d8a1a30fa4b3b5a282704ec29c",
+      "sameAlbumIds": 64,
+      "sameSchema": true,
+      "onlyNumericCountsAndSortOrderChanged": true,
+      "changedAlbumCounts": 14,
+      "totalIncrease": 56,
+      "contentSyncLogSha256": "672d9be6f5725472ffe5ba2b61c057d27463d4b2d1a62fa12e5f96219502c3ac"
+    },
+    "catalogE2ECorrection": {
+      "path": "tests/e2e/new-feature-journeys.spec.ts",
+      "sha256": "5de3f59c5b89f3f8b5986ed3186815c6ec442a414134862a8e007606360cba29"
+    },
+    "compileAndFullCurrentTests": "pending",
+    "claimsApplicationBugFixed": false
   }
 }
