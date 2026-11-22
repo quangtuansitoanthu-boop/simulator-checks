@@ -98,7 +98,7 @@ jobs:
               data=(source/name).read_bytes();assert hashlib.sha256(data).hexdigest()==digest,name
               target=app/relative;assert target.resolve().is_relative_to(app) and not target.exists()
               pending.append((target,data))
-          assert hashlib.sha256((source/'run-cold-pdf-origin-outage.py').read_bytes()).hexdigest()=='99fe45ddafb9d500ae785c446c3176f720ee5a76fde14428ef23060c3c3d5b84'
+          assert hashlib.sha256((source/'run-cold-pdf-origin-outage.py').read_bytes()).hexdigest()=='15dc79114c20767d695fde6b8fc8adb086d6becd3a3dd184c530d7011a6e9f4c'
           assert hashlib.sha256((app/'tests/e2e/new-feature-journeys.spec.ts').read_bytes()).hexdigest()=='70ade32abdf1e00e07e578b30a79a56cace5456babdd097490209bbb2104c789','Original cold case must remain unchanged'
           for target,data in pending:
               target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
