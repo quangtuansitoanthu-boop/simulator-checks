@@ -2,112 +2,124 @@
   "schemaVersion": 1,
   "phase": "final",
   "readyForPublication": true,
-  "snapshotPurpose": "immutable_focused_guest_candidate_captured_before_external_queue_redesign",
-  "snapshotRevision": "v5-touch-footer-hover-guard",
-  "previousSnapshotManifestSha256": "b2a37e40ca364ad08991c9972b62b2bd64244c0994088d81fdc614997f85f53a",
+  "snapshotPurpose": "immutable_native_copy_candidate_derived_only_from_exact_frozen_v5",
+  "snapshotRevision": "v6-copy-coherent-snapshot-fixture",
+  "previousSnapshotManifestSha256": "74677e5bd710d5fa645c59bd0b9b01679ddec2d66a0b107a7900f06a3ed3740b",
   "finalCandidateForQA": true,
   "validation": {
     "claimsApplicationValidated": false,
-    "currentV5FocusedNative": "pending; first-tap hover diagnosis remains a hypothesis until actual native execution",
-    "currentV5FullCoreAndNative": "pending",
-    "priorV4Core": {
-      "runId": 45020780036,
-      "passed": 4537,
-      "skipped": 1,
-      "collected": 4538,
-      "suiteCount": 11,
-      "checkErrors": 0,
-      "checkWarnings": 0,
-      "independentVerificationSha256": "178ef01fb8312d0d4883dfb3ce46b6ef056384c9cf2d85f7fad3ff83647d18a5",
-      "scope": "Exact V4, not V5 execution"
+    "currentV6NativeCopyCompileAndExecution": "pending",
+    "priorV5SharedCoreReportedByCoordinator": {
+      "runId": 45023626848,
+      "status": "passed",
+      "expectedCollected": 4538,
+      "scope": "Frozen V5 shared runtime/core only; V6 application runtime is byte-identical. Does not validate the changed V6 Swift fixture.",
+      "independentlyFetchedBySnapshotAgent": false
     },
-    "priorV4NativeEvidenceReportedByCoordinator": {
-      "ios18SmokePassed": 3,
-      "ios18SmokeFailed": 1,
-      "failure": "First footer tap did not navigate from Home to Rosary before journey; first action emitted hover/mouseover, second click navigated",
-      "ios18Save": "passed",
-      "scope": "Coordinator V4 observations; not V5 native results"
-    },
-    "inheritedV4Validation": {
+    "latestIntegratedApplication": "Not represented; concurrent Antigravity Queue and subsequent MAIN UI excluded by deriving only from frozen V5.",
+    "inheritedV5Validation": {
       "claimsApplicationValidated": false,
-      "fullCurrentV4Core": "pending; other chat running main core/API and mobile build at capture",
-      "currentV4NativeCompileAndTests": "pending",
-      "coordinatorReportedFocusedEvidence": {
-        "mainCheck": {
-          "errors": 0,
-          "warnings": 0
-        },
-        "nativeNotificationCasesPassed": 49,
-        "runBySnapshotAgent": false
+      "currentV5FocusedNative": "pending; first-tap hover diagnosis remains a hypothesis until actual native execution",
+      "currentV5FullCoreAndNative": "pending",
+      "priorV4Core": {
+        "runId": 45020780036,
+        "passed": 4537,
+        "skipped": 1,
+        "collected": 4538,
+        "suiteCount": 11,
+        "checkErrors": 0,
+        "checkWarnings": 0,
+        "independentVerificationSha256": "178ef01fb8312d0d4883dfb3ce46b6ef056384c9cf2d85f7fad3ff83647d18a5",
+        "scope": "Exact V4, not V5 execution"
       },
-      "priorNativeEvidenceReportedByCoordinator": {
-        "executions": 26,
-        "passed": 17,
-        "failed": 9,
-        "scope": "Prior diagnostic evidence; not V4 results"
+      "priorV4NativeEvidenceReportedByCoordinator": {
+        "ios18SmokePassed": 3,
+        "ios18SmokeFailed": 1,
+        "failure": "First footer tap did not navigate from Home to Rosary before journey; first action emitted hover/mouseover, second click navigated",
+        "ios18Save": "passed",
+        "scope": "Coordinator V4 observations; not V5 native results"
       },
-      "inheritedV3Validation": {
+      "inheritedV4Validation": {
         "claimsApplicationValidated": false,
-        "currentV3NativeFixtureCompile": "pending",
-        "currentV3NativeFixtureTests": "pending",
-        "currentV3ApplicationRuntime": "exact V2 bytes; no V3 application fix",
-        "priorV2Evidence": {
-          "manifestSha256": "2c91b9b11751a53b9f6ded01aedff82858de6a07335d19789f7ffe786b11bacd",
-          "expectedMapSha256": "4c9a429cf83f26548bec69ee6c551003ee71d23ad774d044c37588cf8e61ef4f",
-          "core": {
-            "passed": 4533,
-            "skipped": 1,
-            "source": "coordinator reported V2 GitHub core result",
-            "runBySnapshotAgent": false
+        "fullCurrentV4Core": "pending; other chat running main core/API and mobile build at capture",
+        "currentV4NativeCompileAndTests": "pending",
+        "coordinatorReportedFocusedEvidence": {
+          "mainCheck": {
+            "errors": 0,
+            "warnings": 0
           },
-          "androidBuild": {
-            "passedTests": 25,
-            "status": "passed",
-            "source": "coordinator reported V2 Android build",
-            "runBySnapshotAgent": false
-          },
-          "ui40": "rerunning at V3 snapshot request",
-          "androidDevice": "launching V2 at V3 snapshot request",
-          "scope": "V2 evidence only; not a V3 iOS test-fixture compile or execution"
+          "nativeNotificationCasesPassed": 49,
+          "runBySnapshotAgent": false
         },
-        "inheritedV2Validation": {
-          "fullCurrentCore": {
-            "passed": 4531,
-            "skipped": 3,
-            "source": "coordinator reported local core exit 0; Windows fixture skips retained",
-            "runBySnapshotAgent": false
-          },
-          "currentV2NativeAndUI": "not_yet_verified",
+        "priorNativeEvidenceReportedByCoordinator": {
+          "executions": 26,
+          "passed": 17,
+          "failed": 9,
+          "scope": "Prior diagnostic evidence; not V4 results"
+        },
+        "inheritedV3Validation": {
           "claimsApplicationValidated": false,
-          "priorV1Evidence": {
-            "manifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
-            "uiExecutions": 40,
-            "androidNativeAndGuestExecutions": 64,
-            "scope": "v1 candidate unaffected-flow evidence, not a v2 execution"
+          "currentV3NativeFixtureCompile": "pending",
+          "currentV3NativeFixtureTests": "pending",
+          "currentV3ApplicationRuntime": "exact V2 bytes; no V3 application fix",
+          "priorV2Evidence": {
+            "manifestSha256": "2c91b9b11751a53b9f6ded01aedff82858de6a07335d19789f7ffe786b11bacd",
+            "expectedMapSha256": "4c9a429cf83f26548bec69ee6c551003ee71d23ad774d044c37588cf8e61ef4f",
+            "core": {
+              "passed": 4533,
+              "skipped": 1,
+              "source": "coordinator reported V2 GitHub core result",
+              "runBySnapshotAgent": false
+            },
+            "androidBuild": {
+              "passedTests": 25,
+              "status": "passed",
+              "source": "coordinator reported V2 Android build",
+              "runBySnapshotAgent": false
+            },
+            "ui40": "rerunning at V3 snapshot request",
+            "androidDevice": "launching V2 at V3 snapshot request",
+            "scope": "V2 evidence only; not a V3 iOS test-fixture compile or execution"
           },
-          "userContentCorrection": {
-            "at": "2026-11-21T22:35:09+07:00",
-            "text": "Bước 1: Đọc lời nguyện hương",
-            "paths": [
-              "src/lib/i18n/refuge-release.ts",
-              "tests/unit/refuge-release.test.ts",
-              "tests/e2e/home-refuge-release.spec.ts"
-            ],
-            "effect": "one requested content literal and corresponding expected text hashes only; layout/API unchanged",
-            "postGateFocusedCases": 26,
-            "source": "refuge-release session log and coordinator reported targeted pass"
-          },
-          "focusedNativeOrigin": {
-            "passed": 141,
-            "newCases": 15,
-            "source": "coordinator reported focused local run",
-            "runBySnapshotAgent": false
+          "inheritedV2Validation": {
+            "fullCurrentCore": {
+              "passed": 4531,
+              "skipped": 3,
+              "source": "coordinator reported local core exit 0; Windows fixture skips retained",
+              "runBySnapshotAgent": false
+            },
+            "currentV2NativeAndUI": "not_yet_verified",
+            "claimsApplicationValidated": false,
+            "priorV1Evidence": {
+              "manifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
+              "uiExecutions": 40,
+              "androidNativeAndGuestExecutions": 64,
+              "scope": "v1 candidate unaffected-flow evidence, not a v2 execution"
+            },
+            "userContentCorrection": {
+              "at": "2026-11-21T22:35:09+07:00",
+              "text": "Bước 1: Đọc lời nguyện hương",
+              "paths": [
+                "src/lib/i18n/refuge-release.ts",
+                "tests/unit/refuge-release.test.ts",
+                "tests/e2e/home-refuge-release.spec.ts"
+              ],
+              "effect": "one requested content literal and corresponding expected text hashes only; layout/API unchanged",
+              "postGateFocusedCases": 26,
+              "source": "refuge-release session log and coordinator reported targeted pass"
+            },
+            "focusedNativeOrigin": {
+              "passed": 141,
+              "newCases": 15,
+              "source": "coordinator reported focused local run",
+              "runBySnapshotAgent": false
+            }
           }
         }
-      }
-    },
-    "externalAdminCssIntegration": "unverified; retained current external-owner bytes as explicitly requested",
-    "latestIntegratedApplication": "Not represented. External owner Queue redesign excluded; final integrated QA awaits owner handoff."
+      },
+      "externalAdminCssIntegration": "unverified; retained current external-owner bytes as explicitly requested",
+      "latestIntegratedApplication": "Not represented. External owner Queue redesign excluded; final integrated QA awaits owner handoff."
+    }
   },
   "productionDeploymentAuthorized": false,
   "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
@@ -119,13 +131,13 @@
     "qa-test-follow-up.json": "eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa",
     "late-overlay.json": "934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd"
   },
-  "scope": "V4 source plus approved five footer hover rules guarded by fine-pointer hover and two meaningful touch first-tap light/dark E2E cases. Also includes external-owner admin topbar CSS at capture, with integration unverified. Native first-tap hypothesis awaits actual focused verification; no production deployment. Frozen three-path candidate captured before concurrent Antigravity Queue redesign; intentionally not latest integrated application source.",
+  "scope": "Exact frozen V5 application runtime and expected source mapping, replacing only the approved Swift UI fixture with one coherent AX reference snapshot helper, two strict containment predicates and screen-only post-typing attachment. Not live MAIN or latest Antigravity UI; no production deployment.",
   "archive": "moderation-brand-overlay.tar.gz",
-  "archiveSha256": "50d0844f48c40572a94f655e9033383195335dfec513540545a83bfd7fa86048",
-  "archiveBytes": 684110,
+  "archiveSha256": "960b143a5bf6ae18de3c001da92193f9c9716798ca8c52ecd8994330f476b0c1",
+  "archiveBytes": 684315,
   "baseEffectiveFileCount": 3275,
   "currentExpectedFileCount": 3292,
-  "currentExpectedMapSha256": "b847405260a54eea38a8b093c31a7d8baf68615646d1eaebec885ca32f2e26a0",
+  "currentExpectedMapSha256": "b9c9de54dd37723e9579378948c2e600df6afe72c6f3f0a50aa73a3e5b0fc872",
   "addedFileCount": 17,
   "fileCount": 125,
   "classificationCounts": {
@@ -227,7 +239,7 @@
     "src/service-worker.ts",
     "static/manifest.json"
   ],
-  "totalBytes": 2796440,
+  "totalBytes": 2797330,
   "files": [
     {
       "path": "android/app/build.gradle",
@@ -321,9 +333,9 @@
       "path": "ios/App/AppUITests/NativeGuestSmokeTests.swift",
       "operation": "modify",
       "baseGitBlobSha1": "845e100078b87aa6b262c3f16b8181c890443cc9",
-      "gitBlobSha1": "e3f993e96b5dcba698275bd00e3be4b78b8e69f7",
-      "sha256": "57474fbb0a1e233268e39f2dd4c6f5f3cc093417a3b6ddd4e17aea664a397bde",
-      "bytes": 87898,
+      "gitBlobSha1": "a1ea26d951433e7a7a4588a7716e5294e41d3622",
+      "sha256": "fdf7606b6669c6c8cf699c2cba6eb029cdeb89a68536a0df5ab452ed9224377a",
+      "bytes": 88788,
       "classification": "native-test",
       "runtime": false,
       "binary": false
@@ -1657,14 +1669,18 @@
     "missingOldTrackedPathCount": 26
   },
   "sourceConcurrencyGuard": {
-    "allCountedFilesReread": 3292,
-    "changedDuringCapture": [],
-    "newEligibleDuringCapture": [],
-    "matched": true,
-    "scope": "All counted bytes matched at capturedAtUtc; post-capture external Queue edits are explicitly excluded."
+    "method": "Derived from immutable V5 archive/map; live MAIN read only for the approved Swift fixture",
+    "allCountedFilesReread": 0,
+    "allExpectedPathsVerified": 3292,
+    "archiveMembersVerified": 125,
+    "liveMainPathsRead": [
+      "ios/App/AppUITests/NativeGuestSmokeTests.swift"
+    ],
+    "liveMainFixtureRereadMatched": true,
+    "matched": true
   },
-  "previousSnapshotExpectedMapSha256": "056c3d16294ae2fbc7ed1af488749f19da7566da323f0cd3e503004649ec58ab",
-  "capturedAtUtc": "2026-11-22T12:36:39.591557+00:00",
+  "previousSnapshotExpectedMapSha256": "b847405260a54eea38a8b093c31a7d8baf68615646d1eaebec885ca32f2e26a0",
+  "capturedAtUtc": "2026-11-22T12:51:37.689960+00:00",
   "nativeQaObservationRevision": {
     "changedFromV3Paths": [
       "android/app/build.gradle",
@@ -1799,5 +1815,26 @@
       "action": "Preserve MAIN bytes; do not revert. Coordinator chose frozen pre-redesign source only for focused guest Rosary QA."
     }
   },
-  "representsLatestFinalApplicationSource": false
+  "representsLatestFinalApplicationSource": false,
+  "nativeCopyFixtureRevision": {
+    "path": "ios/App/AppUITests/NativeGuestSmokeTests.swift",
+    "previousSha256": "57474fbb0a1e233268e39f2dd4c6f5f3cc093417a3b6ddd4e17aea664a397bde",
+    "sha256": "fdf7606b6669c6c8cf699c2cba6eb029cdeb89a68536a0df5ab452ed9224377a",
+    "bytes": 88788,
+    "reverseExactFrozenV5": true,
+    "all13TestIdsUnchanged": true,
+    "strictContainmentRequirementsRetained": true,
+    "changes": [
+      "One coherent reference AX snapshot helper requiring a unique word",
+      "Two equivalent strict before/after containment predicates from the same reference snapshot",
+      "Screen-only screenshot immediately after existing typing; no AX query in attachment"
+    ],
+    "unchangedFromV5ExpectedPaths": 3291,
+    "applicationRuntimeExactV5Paths": 87,
+    "sharedRuntimeChanges": 0,
+    "liveAntigravityUiIncluded": false,
+    "frozenQueueSha256": "a9751bdcb2f47b710c8eb317a065afc8033c521b75fecd9084c7270437b29342",
+    "nativeCopyCompileAndExecution": "pending",
+    "claimsApplicationFix": false
+  }
 }

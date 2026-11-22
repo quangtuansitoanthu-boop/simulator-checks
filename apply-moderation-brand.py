@@ -12,7 +12,7 @@ assert APP==WORKSPACE/'app' and HARNESS==WORKSPACE/'harness'
 assert not APP.is_symlink() and not HARNESS.is_symlink()
 git=['git','--no-optional-locks','-C',str(APP)]
 raw=(HARNESS/'moderation-brand-overlay.json').read_bytes()
-assert SHA(raw)=='74677e5bd710d5fa645c59bd0b9b01679ddec2d66a0b107a7900f06a3ed3740b','Moderation/brand manifest mismatch'
+assert SHA(raw)=='a6780e831c86a792127fb47ee89e44509b9e3ee607e85889bde9f16c8b7624f6','Moderation/brand manifest mismatch'
 manifest=json.loads(raw)
 assert manifest['phase']=='final' and manifest['readyForPublication'] is True,'Preliminary snapshot cannot be applied'
 assert not manifest['sensitiveFindings']
@@ -90,7 +90,8 @@ report={'status':'EXACT_MODERATION_BRAND_SOURCE_VERIFIED','phase':'final','manif
 'previousSnapshotManifestSha256':manifest['previousSnapshotManifestSha256'],
 'previousSnapshotExpectedMapSha256':manifest['previousSnapshotExpectedMapSha256'],
 'nativeQaObservationRevision':manifest['nativeQaObservationRevision'],
- 'touchFooterRevision':manifest['touchFooterRevision'],'productionWrites':False}
+ 'touchFooterRevision':manifest['touchFooterRevision'],
+ 'nativeCopyFixtureRevision':manifest['nativeCopyFixtureRevision'],'productionWrites':False}
 (proof/'moderation-brand-source-verification.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf8')
 (proof/'moderation-brand-expected.json').write_bytes(map_raw)
 print(json.dumps({key:value for key,value in report.items() if key!='files'}))
