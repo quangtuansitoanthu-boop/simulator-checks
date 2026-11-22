@@ -1,0 +1,128 @@
+name: Inspect immutable V7 SDK diagnostic marker
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/ios-v7-sdk-marker-proof.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify immutable successful producer and exact artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,urllib.request
+          output=pathlib.Path('evidence');output.mkdir(exist_ok=True)
+          assert os.environ['GITHUB_REPOSITORY']=='quangtuansitoanthu-boop/simulator-checks'
+          base='https://api.github.com/repos/quangtuansitoanthu-boop/simulator-checks/'
+          def api(path):
+              request=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
+          producer=api('actions/runs/45028719339')
+          assert producer['head_sha']=='dc48bedd3aae59b243b8a4c7c2936e6031ca8e07' and producer['run_attempt']==1
+          jobs=api('actions/runs/45028719339/jobs?per_page=100')['jobs']
+          build=next(item for item in jobs if item['id']==137227339446)
+          assert build['status']=='completed' and build['conclusion']=='success'
+          artifact=api('actions/artifacts/14756358380')
+          assert artifact['name']=='ios-moderation-products-27.0-45028719339-1'
+          assert artifact['workflow_run']['id']==45028719339 and artifact['workflow_run']['head_sha']==producer['head_sha']
+          assert not artifact['expired'] and artifact['size_in_bytes']==144068768
+          assert artifact['digest']=='sha256:829c3265769de04399b427f351854ec9117df39583522f381629be0dc5f5e318'
+          (output/'producer-proof.json').write_text(json.dumps({'producerRun':45028719339,'producerCommit':producer['head_sha'],'producerBuildJob':build['id'],'producerBuildConclusion':build['conclusion'],'producerOverallConclusion':producer['conclusion'],'artifactId':artifact['id'],'artifactBytes':artifact['size_in_bytes'],'artifactDigest':artifact['digest'],'diagnosticOnly':True,'nativeExecution':False},indent=2)+'\n')
+          PY
+      - name: Download only the immutable producer artifact in this CI reader
+        uses: actions/download-artifact@v6
+        with:
+          name: ios-moderation-products-27.0-45028719339-1
+          run-id: 45028719339
+          github-token: ${{ github.token }}
+          path: ios-prebuilt-v7
+      - name: Read exact marker bytes without executing or extracting native programs
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,plistlib,tarfile
+          root=pathlib.Path('ios-prebuilt-v7').resolve(strict=True)
+          assert root.parent==pathlib.Path.cwd().resolve() and not root.is_symlink()
+          def sha(path):
+              digest=hashlib.sha256()
+              with path.open('rb') as file:
+                  for block in iter(lambda:file.read(1024*1024),b''):digest.update(block)
+              return digest.hexdigest()
+          pins={
+              'products-metadata.json':'c36eb4bbc8b3c4fb415887355c88e4211b301a7c621f19581e4a14515b113b60',
+              'source-overlays-proof.json':'54401f9402d8bf5668bb748abcbdfbd096fe6d97d726d376a923c8ad58d2d1a7',
+              'current-source-overlay-manifest.json':'8d2ab07f5287323dd52a93e69259962c94e7793dd05d8f65956e5dd6df58d9ab',
+              'current-source-expected.json':'a29c9ee3088385c054806f46cc3eec85428173c10cd0bcf400845ecb78f9da99',
+              'UITestProducts.tar.gz':'a726723cbbb52aa04f52fd8095d12764d7d61b52c576d27470be718b170e8cdd',
+          }
+          for name,expected in pins.items():
+              path=root/name;assert path.is_file() and not path.is_symlink() and sha(path)==expected,name
+          metadata=json.loads((root/'products-metadata.json').read_bytes())
+          proof=json.loads((root/'source-overlays-proof.json').read_bytes())
+          assert metadata['schemaVersion']==2 and all(metadata[key]==value for key,value in proof.items())
+          assert metadata['workflowRunId']=='45028719339' and metadata['workflowRunAttempt']=='1'
+          assert metadata['harnessRepositoryCommit']=='dc48bedd3aae59b243b8a4c7c2936e6031ca8e07' and metadata['ios']=='27.0'
+          assert metadata['archiveSha256']==pins['UITestProducts.tar.gz']
+          assert metadata['sourceOverlaysProofSha256']==pins['source-overlays-proof.json']
+          assert metadata['currentSourceOverlayManifestSha256']==pins['current-source-overlay-manifest.json']
+          assert metadata['currentSourceExpectedMapSha256']==pins['current-source-expected.json']
+          assert metadata['currentSourceExpectedFileCount']==3292 and metadata['currentSourceOverlayFileCount']==128
+          assert metadata['harnessSha256']=='fdf7606b6669c6c8cf699c2cba6eb029cdeb89a68536a0df5ab452ed9224377a'
+          assert metadata['caseRunnerSha256']=='f94c21c24b8fd6693c21dc12c761e1cccc96b6feeafcda2c1550e69c5ac4c9d3'
+          assert metadata['inventoryCaseRunnerSha256']=='ad4514cf9ad9fea0257c508340af7c664bd006304721ff10b346e9e27339a174'
+          owners={item['path']:item['sha256'] for item in metadata['currentSourceRuntimeFiles']}
+          assert owners['scripts/lib/ios-local-notifications-patch.mjs']=='17b2ce683a71e44e25f55e0a912c36dadd47018b7d9ae678e407158136938922'
+          assert owners['ios/App/App/TuTapBridgeViewController.swift']=='c4345a5c134cde84a7d790dce14cfb7299c911a9dc2957b866b8d36340a935ce'
+          expected={
+              'Products/Debug-iphonesimulator/App.app/App':'app',
+              'Products/Debug-iphonesimulator/App.app/App.debug.dylib':'app-debug-dylib',
+              'Products/Debug-iphonesimulator/App.app/Frameworks/CapacitorLocalNotifications.framework/CapacitorLocalNotifications':'embedded-sdk',
+              'Products/Debug-iphonesimulator/CapacitorLocalNotifications/CapacitorLocalNotifications.framework/CapacitorLocalNotifications':'built-sdk',
+              'Products/Debug-iphonesimulator/CapacitorLocalNotifications.framework/CapacitorLocalNotifications':'built-sdk-flat',
+          }
+          marker=b'TUTAM_NOTIFICATION_QA phase='
+          magic={bytes.fromhex(value) for value in ['cffaedfe','feedfacf','cefaedfe','feedface','cafebabe','bebafeca','cafebabf','bfbafeca']}
+          binaries=[];environments=[];test_plists=0;seen=set()
+          def collect_environment(value):
+              if isinstance(value,dict):
+                  for key,item in value.items():
+                      if key in ('EnvironmentVariables','TestingEnvironmentVariables') and isinstance(item,dict):
+                          for name in ('OS_ACTIVITY_MODE','OS_ACTIVITY_DT_MODE'):
+                              if name in item:
+                                  raw=item[name];safe=raw if isinstance(raw,str) and raw in {'YES','NO','1','0','disable','enable','info','debug'} else 'other'
+                                  environments.append({'key':name,'value':safe})
+                      collect_environment(item)
+              elif isinstance(value,list):
+                  for item in value:collect_environment(item)
+          with tarfile.open(root/'UITestProducts.tar.gz',mode='r|gz') as archive:
+              for member in archive:
+                  relative=pathlib.PurePosixPath(member.name)
+                  assert not relative.is_absolute() and '..' not in relative.parts and '\\' not in member.name
+                  if member.name in expected:
+                      assert member.name not in seen;seen.add(member.name)
+                      assert member.isfile() and 0<member.size<=128*1024*1024
+                      data=archive.extractfile(member).read();assert len(data)==member.size and data[:4] in magic
+                      binaries.append({'role':expected[member.name],'basename':relative.name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'exactMarkerPresent':marker in data})
+                  elif relative.suffix=='.xctestrun' and len(relative.parts)==2:
+                      assert member.isfile() and member.size<=2*1024*1024
+                      collect_environment(plistlib.loads(archive.extractfile(member).read()));test_plists+=1
+          assert any(row['role']=='app' for row in binaries) and test_plists==1
+          assert any(row['role'] in ('embedded-sdk','built-sdk','built-sdk-flat') for row in binaries),'Unsupported Products: no actual LocalNotifications SDK Mach-O was scanned'
+          result={'readerStatus':'COMPLETED','diagnosticOnly':True,'producerRun':45028719339,'sourceManifestSha256':pins['current-source-overlay-manifest.json'],'scanMethod':'exact ASCII byte literal; no binary execution','binaries':binaries,'markerPresentInAnyKnownBinary':any(row['exactMarkerPresent'] for row in binaries),'sdkDebugCompilerFlagsCaptured':False,'xctestrunOSActivityEnvironment':environments,'nativeExecution':False,'applicationPassClaimed':False,'interpretationLimit':'Absence describes only the scanned linked binaries; presence does not prove NSLog transport or native method entry.'}
+          pathlib.Path('evidence/sdk-marker-proof.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          PY
+      - name: Upload only primitive diagnostic proof
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-v7-sdk-marker-proof-${{ github.run_id }}
+          path: evidence/*.json
+          retention-days: 7
+          if-no-files-found: error
