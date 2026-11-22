@@ -2,87 +2,112 @@
   "schemaVersion": 1,
   "phase": "final",
   "readyForPublication": true,
-  "snapshotPurpose": "immutable_candidate_for_github_qa",
-  "snapshotRevision": "v4-notification-observations-version33",
-  "previousSnapshotManifestSha256": "9fab3ed02bdc69a7fdd70fa2a4e8aa2cfe19a0866c2452d4d2b20180645b17fa",
+  "snapshotPurpose": "immutable_focused_guest_candidate_captured_before_external_queue_redesign",
+  "snapshotRevision": "v5-touch-footer-hover-guard",
+  "previousSnapshotManifestSha256": "b2a37e40ca364ad08991c9972b62b2bd64244c0994088d81fdc614997f85f53a",
   "finalCandidateForQA": true,
   "validation": {
     "claimsApplicationValidated": false,
-    "fullCurrentV4Core": "pending; other chat running main core/API and mobile build at capture",
-    "currentV4NativeCompileAndTests": "pending",
-    "coordinatorReportedFocusedEvidence": {
-      "mainCheck": {
-        "errors": 0,
-        "warnings": 0
-      },
-      "nativeNotificationCasesPassed": 49,
-      "runBySnapshotAgent": false
+    "currentV5FocusedNative": "pending; first-tap hover diagnosis remains a hypothesis until actual native execution",
+    "currentV5FullCoreAndNative": "pending",
+    "priorV4Core": {
+      "runId": 45020780036,
+      "passed": 4537,
+      "skipped": 1,
+      "collected": 4538,
+      "suiteCount": 11,
+      "checkErrors": 0,
+      "checkWarnings": 0,
+      "independentVerificationSha256": "178ef01fb8312d0d4883dfb3ce46b6ef056384c9cf2d85f7fad3ff83647d18a5",
+      "scope": "Exact V4, not V5 execution"
     },
-    "priorNativeEvidenceReportedByCoordinator": {
-      "executions": 26,
-      "passed": 17,
-      "failed": 9,
-      "scope": "Prior diagnostic evidence; not V4 results"
+    "priorV4NativeEvidenceReportedByCoordinator": {
+      "ios18SmokePassed": 3,
+      "ios18SmokeFailed": 1,
+      "failure": "First footer tap did not navigate from Home to Rosary before journey; first action emitted hover/mouseover, second click navigated",
+      "ios18Save": "passed",
+      "scope": "Coordinator V4 observations; not V5 native results"
     },
-    "inheritedV3Validation": {
+    "inheritedV4Validation": {
       "claimsApplicationValidated": false,
-      "currentV3NativeFixtureCompile": "pending",
-      "currentV3NativeFixtureTests": "pending",
-      "currentV3ApplicationRuntime": "exact V2 bytes; no V3 application fix",
-      "priorV2Evidence": {
-        "manifestSha256": "2c91b9b11751a53b9f6ded01aedff82858de6a07335d19789f7ffe786b11bacd",
-        "expectedMapSha256": "4c9a429cf83f26548bec69ee6c551003ee71d23ad774d044c37588cf8e61ef4f",
-        "core": {
-          "passed": 4533,
-          "skipped": 1,
-          "source": "coordinator reported V2 GitHub core result",
-          "runBySnapshotAgent": false
+      "fullCurrentV4Core": "pending; other chat running main core/API and mobile build at capture",
+      "currentV4NativeCompileAndTests": "pending",
+      "coordinatorReportedFocusedEvidence": {
+        "mainCheck": {
+          "errors": 0,
+          "warnings": 0
         },
-        "androidBuild": {
-          "passedTests": 25,
-          "status": "passed",
-          "source": "coordinator reported V2 Android build",
-          "runBySnapshotAgent": false
-        },
-        "ui40": "rerunning at V3 snapshot request",
-        "androidDevice": "launching V2 at V3 snapshot request",
-        "scope": "V2 evidence only; not a V3 iOS test-fixture compile or execution"
+        "nativeNotificationCasesPassed": 49,
+        "runBySnapshotAgent": false
       },
-      "inheritedV2Validation": {
-        "fullCurrentCore": {
-          "passed": 4531,
-          "skipped": 3,
-          "source": "coordinator reported local core exit 0; Windows fixture skips retained",
-          "runBySnapshotAgent": false
-        },
-        "currentV2NativeAndUI": "not_yet_verified",
+      "priorNativeEvidenceReportedByCoordinator": {
+        "executions": 26,
+        "passed": 17,
+        "failed": 9,
+        "scope": "Prior diagnostic evidence; not V4 results"
+      },
+      "inheritedV3Validation": {
         "claimsApplicationValidated": false,
-        "priorV1Evidence": {
-          "manifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
-          "uiExecutions": 40,
-          "androidNativeAndGuestExecutions": 64,
-          "scope": "v1 candidate unaffected-flow evidence, not a v2 execution"
+        "currentV3NativeFixtureCompile": "pending",
+        "currentV3NativeFixtureTests": "pending",
+        "currentV3ApplicationRuntime": "exact V2 bytes; no V3 application fix",
+        "priorV2Evidence": {
+          "manifestSha256": "2c91b9b11751a53b9f6ded01aedff82858de6a07335d19789f7ffe786b11bacd",
+          "expectedMapSha256": "4c9a429cf83f26548bec69ee6c551003ee71d23ad774d044c37588cf8e61ef4f",
+          "core": {
+            "passed": 4533,
+            "skipped": 1,
+            "source": "coordinator reported V2 GitHub core result",
+            "runBySnapshotAgent": false
+          },
+          "androidBuild": {
+            "passedTests": 25,
+            "status": "passed",
+            "source": "coordinator reported V2 Android build",
+            "runBySnapshotAgent": false
+          },
+          "ui40": "rerunning at V3 snapshot request",
+          "androidDevice": "launching V2 at V3 snapshot request",
+          "scope": "V2 evidence only; not a V3 iOS test-fixture compile or execution"
         },
-        "userContentCorrection": {
-          "at": "2026-11-21T22:35:09+07:00",
-          "text": "Bước 1: Đọc lời nguyện hương",
-          "paths": [
-            "src/lib/i18n/refuge-release.ts",
-            "tests/unit/refuge-release.test.ts",
-            "tests/e2e/home-refuge-release.spec.ts"
-          ],
-          "effect": "one requested content literal and corresponding expected text hashes only; layout/API unchanged",
-          "postGateFocusedCases": 26,
-          "source": "refuge-release session log and coordinator reported targeted pass"
-        },
-        "focusedNativeOrigin": {
-          "passed": 141,
-          "newCases": 15,
-          "source": "coordinator reported focused local run",
-          "runBySnapshotAgent": false
+        "inheritedV2Validation": {
+          "fullCurrentCore": {
+            "passed": 4531,
+            "skipped": 3,
+            "source": "coordinator reported local core exit 0; Windows fixture skips retained",
+            "runBySnapshotAgent": false
+          },
+          "currentV2NativeAndUI": "not_yet_verified",
+          "claimsApplicationValidated": false,
+          "priorV1Evidence": {
+            "manifestSha256": "7d77a93dad3bcae2024f495657a8285e750be58f353daf34672fe1d4601b553b",
+            "uiExecutions": 40,
+            "androidNativeAndGuestExecutions": 64,
+            "scope": "v1 candidate unaffected-flow evidence, not a v2 execution"
+          },
+          "userContentCorrection": {
+            "at": "2026-11-21T22:35:09+07:00",
+            "text": "Bước 1: Đọc lời nguyện hương",
+            "paths": [
+              "src/lib/i18n/refuge-release.ts",
+              "tests/unit/refuge-release.test.ts",
+              "tests/e2e/home-refuge-release.spec.ts"
+            ],
+            "effect": "one requested content literal and corresponding expected text hashes only; layout/API unchanged",
+            "postGateFocusedCases": 26,
+            "source": "refuge-release session log and coordinator reported targeted pass"
+          },
+          "focusedNativeOrigin": {
+            "passed": 141,
+            "newCases": 15,
+            "source": "coordinator reported focused local run",
+            "runBySnapshotAgent": false
+          }
         }
       }
-    }
+    },
+    "externalAdminCssIntegration": "unverified; retained current external-owner bytes as explicitly requested",
+    "latestIntegratedApplication": "Not represented. External owner Queue redesign excluded; final integrated QA awaits owner handoff."
   },
   "productionDeploymentAuthorized": false,
   "baselineRepository": "quangtuansitoanthu-boop/r-8f31b6c2",
@@ -94,25 +119,25 @@
     "qa-test-follow-up.json": "eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa",
     "late-overlay.json": "934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd"
   },
-  "scope": "Approved current V4 source: bounded opt-in notification QA phases, compatible fixtures/Swift Add diagnostics, catalog E2E correction, version33/1.2.29 metadata and same-schema numeric play snapshot; no production deployment.",
+  "scope": "V4 source plus approved five footer hover rules guarded by fine-pointer hover and two meaningful touch first-tap light/dark E2E cases. Also includes external-owner admin topbar CSS at capture, with integration unverified. Native first-tap hypothesis awaits actual focused verification; no production deployment. Frozen three-path candidate captured before concurrent Antigravity Queue redesign; intentionally not latest integrated application source.",
   "archive": "moderation-brand-overlay.tar.gz",
-  "archiveSha256": "08dd256f4ba63038adbc67942b174ee90aa2f73f60d79a54b9292c2a2be2c86b",
-  "archiveBytes": 670771,
+  "archiveSha256": "50d0844f48c40572a94f655e9033383195335dfec513540545a83bfd7fa86048",
+  "archiveBytes": 684110,
   "baseEffectiveFileCount": 3275,
   "currentExpectedFileCount": 3292,
-  "currentExpectedMapSha256": "056c3d16294ae2fbc7ed1af488749f19da7566da323f0cd3e503004649ec58ab",
+  "currentExpectedMapSha256": "b847405260a54eea38a8b093c31a7d8baf68615646d1eaebec885ca32f2e26a0",
   "addedFileCount": 17,
-  "fileCount": 122,
+  "fileCount": 125,
   "classificationCounts": {
     "native-runtime": 5,
     "native-test": 3,
     "build-config": 3,
     "schema": 1,
-    "client-runtime": 66,
-    "test": 34,
+    "client-runtime": 68,
+    "test": 35,
     "server-runtime": 10
   },
-  "runtimeFileCount": 85,
+  "runtimeFileCount": 87,
   "runtimePaths": [
     "android/app/build.gradle",
     "android/app/src/main/java/vn/quangtu/tutam/StartupArtworkView.java",
@@ -177,6 +202,8 @@
     "src/lib/server/services/admin-notifications.ts",
     "src/lib/server/services/mindful-community.ts",
     "src/lib/server/services/mindful-moderation.ts",
+    "src/lib/styles/admin-layout.css",
+    "src/lib/styles/master-shell.css",
     "src/lib/styles/tokens.css",
     "src/routes/+layout.svelte",
     "src/routes/+page.svelte",
@@ -200,7 +227,7 @@
     "src/service-worker.ts",
     "static/manifest.json"
   ],
-  "totalBytes": 2730601,
+  "totalBytes": 2796440,
   "files": [
     {
       "path": "android/app/build.gradle",
@@ -940,6 +967,28 @@
       "binary": false
     },
     {
+      "path": "src/lib/styles/admin-layout.css",
+      "operation": "modify",
+      "baseGitBlobSha1": "1d7445c01d89e0a7414d6d0fac67c1d7c7b2b770",
+      "gitBlobSha1": "59d9cd2ce3462526d42792a59cce2788a2fcedf4",
+      "sha256": "8acdc24fd18fdf36cd5c0da35055ea432850fcec4ea3512f13925c56be0b9e86",
+      "bytes": 10686,
+      "classification": "client-runtime",
+      "runtime": true,
+      "binary": false
+    },
+    {
+      "path": "src/lib/styles/master-shell.css",
+      "operation": "modify",
+      "baseGitBlobSha1": "536918856428b529e3981a5fe795f439edf1d9a6",
+      "gitBlobSha1": "351d4b9430ce22a166222ca556176f208eca910e",
+      "sha256": "4bcb80820cfb55749d7bcef08f88f6b5e020874c0727a4a187cff50b15630b3f",
+      "bytes": 34897,
+      "classification": "client-runtime",
+      "runtime": true,
+      "binary": false
+    },
+    {
       "path": "src/lib/styles/tokens.css",
       "operation": "modify",
       "baseGitBlobSha1": "6525f41bffbbf55f247ad4794a105dda905815a9",
@@ -1369,6 +1418,17 @@
       "binary": false
     },
     {
+      "path": "tests/e2e/native-navigation-regressions.spec.ts",
+      "operation": "modify",
+      "baseGitBlobSha1": "fa86c3e4be6744e0f4a899c497d3eef18323d8ba",
+      "gitBlobSha1": "3fe852a7a9288a88e18d9d8e87cc6abd187dd53d",
+      "sha256": "80a4d998cfed84210b3781f297425c266c4a35a1617eedbf898f5d3e03282ac1",
+      "bytes": 20256,
+      "classification": "test",
+      "runtime": false,
+      "binary": false
+    },
+    {
       "path": "tests/e2e/new-feature-journeys.spec.ts",
       "operation": "modify",
       "baseGitBlobSha1": "3e24b34c00a75009e521dea7f30497733351f055",
@@ -1600,10 +1660,11 @@
     "allCountedFilesReread": 3292,
     "changedDuringCapture": [],
     "newEligibleDuringCapture": [],
-    "matched": true
+    "matched": true,
+    "scope": "All counted bytes matched at capturedAtUtc; post-capture external Queue edits are explicitly excluded."
   },
-  "previousSnapshotExpectedMapSha256": "ba7f12b37b6012ad8871bc97b550d5383f4e9620c4d2734069e6c2f696586317",
-  "capturedAtUtc": "2026-11-22T12:02:17.471548+00:00",
+  "previousSnapshotExpectedMapSha256": "056c3d16294ae2fbc7ed1af488749f19da7566da323f0cd3e503004649ec58ab",
+  "capturedAtUtc": "2026-11-22T12:36:39.591557+00:00",
   "nativeQaObservationRevision": {
     "changedFromV3Paths": [
       "android/app/build.gradle",
@@ -1678,6 +1739,65 @@
       "sha256": "5de3f59c5b89f3f8b5986ed3186815c6ec442a414134862a8e007606360cba29"
     },
     "compileAndFullCurrentTests": "pending",
-    "claimsApplicationBugFixed": false
-  }
+    "claimsApplicationBugFixed": false,
+    "sourceSnapshotRevision": "v4-notification-observations-version33"
+  },
+  "touchFooterRevision": {
+    "changedFromV4Paths": [
+      "src/lib/styles/admin-layout.css",
+      "src/lib/styles/master-shell.css",
+      "tests/e2e/native-navigation-regressions.spec.ts"
+    ],
+    "changedFromV4PathCount": 3,
+    "unchangedFromV4Paths": 3289,
+    "css": {
+      "path": "src/lib/styles/master-shell.css",
+      "sha256": "4bcb80820cfb55749d7bcef08f88f6b5e020874c0727a4a187cff50b15630b3f",
+      "scope": "All five footer hover rules require (hover: hover) and (pointer: fine); aria-current remains active on touch."
+    },
+    "test": {
+      "path": "tests/e2e/native-navigation-regressions.spec.ts",
+      "sha256": "80a4d998cfed84210b3781f297425c266c4a35a1617eedbf898f5d3e03282ac1",
+      "addedCases": 2,
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "existingTestSourcePreservedBySingleInsertion": true,
+      "singleActualTouchTapRequired": true
+    },
+    "coordinatorReview": "native_audit reviewed minimal CSS change as consistent with Apple hover heuristic",
+    "httpApiDelta": 0,
+    "d1Delta": 0,
+    "sqlDelta": 0,
+    "rowsDelta": 0,
+    "hypothesisPendingFocusedNativeVerification": true,
+    "claimsNativeBugFixed": false,
+    "externalOwnerDrift": [
+      {
+        "path": "src/lib/styles/admin-layout.css",
+        "sha256": "8acdc24fd18fdf36cd5c0da35055ea432850fcec4ea3512f13925c56be0b9e86",
+        "bytes": 10686,
+        "owner": "External concurrent Antigravity admin/profile UI task; coordinator explicitly authorized inclusion of current bytes",
+        "scope": "Two desktop/mobile admin-topbar hunks replace translucent/blur background with existing var(--card)",
+        "claimedAsOurFix": false,
+        "integrationValidation": "pending; focused guest native flow does not visit admin"
+      }
+    ],
+    "frozenQueueFromV4": {
+      "path": "src/lib/components/admin/community/AdminModerationQueue.svelte",
+      "sha256": "a9751bdcb2f47b710c8eb317a065afc8033c521b75fecd9084c7270437b29342",
+      "bytes": 23420,
+      "unchangedFromV4": true
+    },
+    "excludedPostCaptureExternalQueueChange": {
+      "path": "src/lib/components/admin/community/AdminModerationQueue.svelte",
+      "observedSha256": "8fb34a794bde78e6e46430e60ed32f7e6ca4fa3fb4d15c9e876ad762e3a036a2",
+      "observedBytes": 40238,
+      "owner": "Concurrent Antigravity 48-hour/admin UI task",
+      "included": false,
+      "action": "Preserve MAIN bytes; do not revert. Coordinator chose frozen pre-redesign source only for focused guest Rosary QA."
+    }
+  },
+  "representsLatestFinalApplicationSource": false
 }
