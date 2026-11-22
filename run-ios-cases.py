@@ -335,7 +335,28 @@ def collect_copy_lifecycle_os_log(args, case_dir, record):
         if not (isinstance(started, (float, int)) and isinstance(finished, (float, int))
                 and 0 <= finished - started <= 1000):
             raise RuntimeError("invalid-case-window")
-        start_text = datetime.datetime.fromtimestamp(started).strftime("%Y-%m-%d %H:%M:%S")
+        # The existing attachment export runs before this diagnostic. Anchor at the
+        # actual pre-open snapshot so test-host startup cannot exhaust the log cap.
+        manifest_path = case_dir / "attachments" / "manifest.json"
+        if (manifest_path.is_symlink() or not manifest_path.is_file()
+                or manifest_path.stat().st_size > 1024 * 1024):
+            raise RuntimeError("missing-copy-before-manifest")
+        manifest = json.loads(manifest_path.read_bytes())
+        if not isinstance(manifest, list):
+            raise RuntimeError("invalid-copy-before-manifest")
+        before = [attachment.get("timestamp") for group in manifest if isinstance(group, dict)
+                  and isinstance(group.get("attachments"), list)
+                  for attachment in group.get("attachments", []) if isinstance(attachment, dict)
+                  and isinstance(attachment.get("suggestedHumanReadableName"), str)
+                  and attachment["suggestedHumanReadableName"].startswith("copy-before-native-url-open_")
+                  and attachment["suggestedHumanReadableName"].endswith(".png")]
+        if len(before) != 1 or type(before[0]) not in (float, int):
+            raise RuntimeError("missing-unique-copy-before-timestamp")
+        before_timestamp = before[0]
+        query_started = before_timestamp - 2
+        if not started <= query_started <= before_timestamp <= finished:
+            raise RuntimeError("invalid-copy-before-window")
+        start_text = datetime.datetime.fromtimestamp(query_started).strftime("%Y-%m-%d %H:%M:%S")
         end_text = datetime.datetime.fromtimestamp(finished).strftime("%Y-%m-%d %H:%M:%S")
         webkit_processes = ("com.apple.WebKit.WebContent", "com.apple.WebKit.Networking",
                             "com.apple.WebKit.GPU", "WebContent", "Networking", "GPU")
@@ -433,6 +454,8 @@ def collect_copy_lifecycle_os_log(args, case_dir, record):
                          "queryExitCode": process.returncode, "timedOut": timed_out,
                          "truncated": truncated, "readBytes": received, "unparsedLines": unparsed,
                          "caseStartedAt": started, "caseFinishedAt": finished,
+                         "copyBeforeAttachmentTimestamp": before_timestamp,
+                         "queryStartedAt": query_started,
                          "processes": ["App", *webkit_processes, *system_processes],
                          "messagePolicy": "fixed lifecycle vocabulary and bounded numeric PIDs/codes only; no raw free text",
                          "absenceDoesNotProveCallWasNotMade": True})
@@ -519,9 +542,11 @@ def run_case(args, index, identifier, xctestrun, app):
         record["finishedAt"] = time.time()
         collect_qa_events(args, case_dir, record)
         collect_notification_os_log(args, case_dir, record)
-        collect_copy_lifecycle_os_log(args, case_dir, record)
         write_json(record_path, record)
-    return collect(args, index, identifier, record)
+    record = collect(args, index, identifier, record)
+    collect_copy_lifecycle_os_log(args, case_dir, record)
+    write_json(record_path, record)
+    return record
 
 
 def main():
