@@ -1,0 +1,257 @@
+# Source frozen for isolated GitHub QA; this workflow does not authorize production deployment.
+name: Moderation V4 current source - complete core
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/moderation-core-v4.yml']
+permissions:
+  contents: read
+concurrency:
+  group: moderation-v4-core-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  core:
+    name: Complete V4 core - all eleven suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+      DO_NOT_TRACK: '1'
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      TUTAM_E2E_LOCAL_ONLY: '1'
+      MODERATION_SOURCE_OVERLAY_SHA256: b2a37e40ca364ad08991c9972b62b2bd64244c0994088d81fdc614997f85f53a
+      MODERATION_APPLY_HELPER_SHA256: 2ffff8198970f9dd75a651069f8b085fc037591a763b39066ba36dc8134ef2be
+      MODERATION_EXPECTED_MAP_SHA256: 056c3d16294ae2fbc7ed1af488749f19da7566da323f0cd3e503004649ec58ab
+      MODERATION_SOURCE_FILE_COUNT: 3292
+      TUTAM_RUNTIME_MANIFEST_SHA256: cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7
+      TUTAM_TEST_SUPPORT_MANIFEST_SHA256: 4075d004b03ea59c44337cb9296713fc22a6e21bfe9d2c2ebd90dd17d97a8e9c
+      CORE_EXPECTED_COLLECTED: '4538'
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - name: Check out immutable QA harness
+        uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Check out unchanged application baseline
+        uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Require final pins and apply the complete reviewed source chain
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          h=pathlib.Path('../harness')
+          for key in ('MODERATION_SOURCE_OVERLAY_SHA256','MODERATION_APPLY_HELPER_SHA256','MODERATION_EXPECTED_MAP_SHA256'):
+              assert re.fullmatch('[0-9a-f]{64}',os.environ[key]),'NOT PUBLISHABLE: final pin required for '+key
+          assert os.environ['MODERATION_SOURCE_FILE_COUNT'].isdigit(),'NOT PUBLISHABLE: final source count required'
+          pins={'mobile-current-manifest.json':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7',
+            'ui-fixes.json':'b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295',
+            'current-follow-up.json':'9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137',
+            'qa-test-follow-up.json':'eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa',
+            'late-overlay.json':'934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd',
+            'moderation-brand-overlay.json':os.environ['MODERATION_SOURCE_OVERLAY_SHA256'],
+            'apply-moderation-brand.py':os.environ['MODERATION_APPLY_HELPER_SHA256']}
+          for name,wanted in pins.items():
+              assert hashlib.sha256((h/name).read_bytes()).hexdigest()==wanted,name
+          m=json.loads((h/'moderation-brand-overlay.json').read_bytes())
+          assert m['phase']=='final' and m['readyForPublication'] is True and not m['sensitiveFindings']
+          assert m['currentExpectedMapSha256']==os.environ['MODERATION_EXPECTED_MAP_SHA256']
+          assert m['currentExpectedFileCount']==int(os.environ['MODERATION_SOURCE_FILE_COUNT'])
+          assert m['baseManifestSha256']==pins['mobile-current-manifest.json']
+          for name,wanted in m['prerequisiteManifests'].items(): assert pins[name]==wanted,name
+          PY
+          python3 ../harness/apply-current.py .
+          python3 ../harness/apply-ui-fixes.py .
+          python3 ../harness/apply-current-follow-up.py .
+          python3 ../harness/apply-qa-test-follow-up.py .
+          python3 ../harness/apply-late-overlay.py .
+          python3 ../harness/apply-moderation-brand.py .
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          p=pathlib.Path('qa-evidence/moderation-brand-source-verification.json')
+          proof=json.loads(p.read_bytes())
+          assert proof['status']=='EXACT_MODERATION_BRAND_SOURCE_VERIFIED' and proof['phase']=='final'
+          assert proof['manifestSha256']==os.environ['MODERATION_SOURCE_OVERLAY_SHA256']
+          assert proof['currentExpectedFileCount']==int(os.environ['MODERATION_SOURCE_FILE_COUNT'])
+          assert proof['currentExpectedMapSha256']==os.environ['MODERATION_EXPECTED_MAP_SHA256']
+          assert proof['productionWrites'] is False
+          raw=pathlib.Path('qa-evidence/moderation-brand-expected.json').read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==proof['currentExpectedMapSha256']
+          expected=json.loads(raw);assert len(expected)==proof['currentExpectedFileCount']
+          root=pathlib.Path.cwd().resolve()
+          for name,wanted in expected.items():
+              target=root/name
+              assert target.resolve().is_relative_to(root) and not target.is_symlink(),name
+              data=target.read_bytes()
+              assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==wanted,name
+          print(json.dumps({'sourceStatus':proof['status'],'sourceFileCount':len(expected),'currentExpectedMapSha256':proof['currentExpectedMapSha256']}))
+          PY
+      - name: Verify and apply the seven exact runtime JSON imports
+        run: |
+          set -euo pipefail
+          echo "$TUTAM_RUNTIME_MANIFEST_SHA256  ../harness/runtime-data-manifest.json" | sha256sum -c -
+          python3 ../harness/apply-runtime-data.py .
+      - name: Verify and copy the two text contract inputs into nested app only
+        run: |
+          set -euo pipefail
+          echo "$TUTAM_TEST_SUPPORT_MANIFEST_SHA256  ../harness/test-support-manifest.json" | sha256sum -c -
+          python3 ../harness/apply-test-support.py .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Isolate known production hosts before running application tools
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,ipaddress,json,os,pathlib,re,socket,subprocess
+          proof=pathlib.Path('qa-evidence');proof.mkdir(exist_ok=True)
+          assert not any(os.environ.get(k) for k in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy')),'Proxy could bypass host isolation'
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          owner=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+          hosts.update(re.findall(r'https://([A-Za-z0-9.-]+)',owner))
+          assert all(re.fullmatch('[A-Za-z0-9.-]+',h) for h in hosts)
+          original=pathlib.Path('/etc/hosts').read_bytes()
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'moderation-original-hosts'
+          assert not backup.exists(),'Unexpected existing isolation backup'
+          backup.write_bytes(original)
+          lines=[]
+          for line in original.decode().splitlines():
+              body,sep,comment=line.partition('#');parts=body.split()
+              if len(parts)>1:
+                  parts=[parts[0]]+[p for p in parts[1:] if p not in hosts]
+                  if len(parts)<2: continue
+                  body=' '.join(parts)
+              lines.append(body+(' #'+comment if sep else ''))
+          for host in sorted(hosts): lines.extend(('127.0.0.1 '+host,'::1 '+host))
+          subprocess.run(['sudo','tee','/etc/hosts'],input=('\n'.join(lines)+'\n').encode(),stdout=subprocess.DEVNULL,check=True)
+          resolved={}
+          for host in sorted(hosts):
+              addresses=sorted({row[4][0] for row in socket.getaddrinfo(host,443)})
+              assert addresses and all(ipaddress.ip_address(a).is_loopback for a in addresses),host
+              resolved[host]=addresses
+          (proof/'network-isolation.json').write_text(json.dumps({'knownProductionHosts':resolved,'originalHostsSha256':hashlib.sha256(original).hexdigest(),'proxyBypass':False,'productionApiCallsAllowed':False},indent=2)+'\n')
+          PY
+      - name: Install locked dependencies and existing Chromium test runtime
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Run unchanged full npm test including check build and all eleven suites
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess,sys
+          evidence=pathlib.Path('qa-evidence');evidence.mkdir(exist_ok=True)
+          groups=evidence/'owned-process-groups.json'
+          command=["npm","test"]
+          child=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
+          pids=json.loads(groups.read_text()) if groups.exists() else []
+          pids.append(child.pid);groups.write_text(json.dumps(pids))
+          with (evidence/'core.log').open('wb') as output:
+              for line in iter(child.stdout.readline,b''):
+                  output.write(line);output.flush()
+                  sys.stdout.buffer.write(line);sys.stdout.buffer.flush()
+          code=child.wait()
+          (evidence/'core-exit-code.txt').write_text(str(code)+'\n')
+          sys.exit(code)
+          PY
+      - name: Require all eleven suites and report actual collected counts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          p=pathlib.Path('qa-evidence');p.mkdir(exist_ok=True)
+          log=p/'core.log'
+          text=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',log.read_text(errors='replace') if log.exists() else '').replace('\r','')
+          expected=['migration','parity','unit','copying-editor','auth','api','server','pwa','jobs','deployment','worker']
+          banner=re.compile(r'^> \S+@\S+ test:('+('|'.join(expected))+r')\s*$',re.M)
+          matches=list(banner.finditer(text));suites=[]
+          for index,m in enumerate(matches):
+              section=text[m.end():matches[index+1].start() if index+1<len(matches) else len(text)]
+              lines=re.findall(r'^\s*Tests\s+([^\n]+)',section,re.M)
+              counts={key:sum(int(value) for line in lines for value in re.findall(r'(\d+) '+key+r'\b',line)) for key in ('passed','failed','skipped','todo')}
+              totals=[int(value) for line in lines for value in re.findall(r'\((\d+)\)',line)]
+              suites.append({'suite':m.group(1),'summaryCount':len(lines),'summaries':lines,**counts,'collected':sum(counts.values()),'reportedTotals':totals})
+          totals={key:sum(row[key] for row in suites) for key in ('passed','failed','skipped','todo','collected')}
+          exit_file=p/'core-exit-code.txt'
+          exit_code=int(exit_file.read_text()) if exit_file.exists() else None
+          source_file=p/'moderation-brand-source-verification.json'
+          source=json.loads(source_file.read_text()) if source_file.exists() else {}
+          generator=pathlib.Path('tests/unit/durable-reminder-fixtures.test.ts')
+          generator_text=generator.read_text() if generator.exists() else ''
+          known_skip=("it.skipIf(!process.env.GENERATE_ANDROID_REMINDER_FIXTURES)" in generator_text and
+            'generates shared TS/native calendar and message fixtures' in generator_text and not os.environ.get('GENERATE_ANDROID_REMINDER_FIXTURES'))
+          exact=os.environ.get('CORE_EXPECTED_COLLECTED','').strip()
+          valid=(exit_code==0 and [r['suite'] for r in suites]==expected
+            and all(r['summaryCount']==1 and r['reportedTotals']==[r['collected']] and r['failed']==0 and r['todo']==0
+              and r['skipped']==(1 if r['suite']=='unit' else 0) for r in suites)
+            and totals['collected']>=4500 and (not exact or totals['collected']==int(exact))
+            and known_skip and 'svelte-check found 0 errors and 0 warnings' in text
+            and 'Using @sveltejs/adapter-cloudflare' in text
+            and source.get('status')=='EXACT_MODERATION_BRAND_SOURCE_VERIFIED'
+            and source.get('manifestSha256')==os.environ['MODERATION_SOURCE_OVERLAY_SHA256']
+            and source.get('currentExpectedMapSha256')==os.environ['MODERATION_EXPECTED_MAP_SHA256']
+            and source.get('currentExpectedFileCount')==int(os.environ['MODERATION_SOURCE_FILE_COUNT']))
+          result={'gate':'PASSED' if valid else 'FAILED','npmExitCode':exit_code,**totals,'suites':suites,
+            'expectedSuiteOrder':expected,'minimumCollected':4500,'exactCollectedPin':exact or None,
+            'typecheckClean':'svelte-check found 0 errors and 0 warnings' in text,
+            'skipPolicy':'Only the existing opt-in Android reminder fixture generator may skip on Linux',
+            'knownGeneratorSkipVerified':known_skip,'sourceManifestSha256':os.environ['MODERATION_SOURCE_OVERLAY_SHA256'],
+            'currentExpectedMapSha256':source.get('currentExpectedMapSha256'),'sourceFileCount':source.get('currentExpectedFileCount'),
+            'runtimeManifestSha256':os.environ['TUTAM_RUNTIME_MANIFEST_SHA256'],
+            'testSupportManifestSha256':os.environ['TUTAM_TEST_SUPPORT_MANIFEST_SHA256']}
+          (p/'core-summary.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          assert valid,'Core source identity, npm exit, all eleven suites, exact skip policy or collected-count gate failed'
+          PY
+      - name: Stop only owned process groups before restoring hosts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,signal,subprocess,time
+          evidence=pathlib.Path('qa-evidence');evidence.mkdir(exist_ok=True)
+          groups=evidence/'owned-process-groups.json'
+          stopped=[]
+          for pgid in (json.loads(groups.read_text()) if groups.exists() else []):
+              assert isinstance(pgid,int) and pgid>1 and pgid!=os.getpgrp()
+              try: os.killpg(pgid,signal.SIGTERM)
+              except ProcessLookupError: continue
+              deadline=time.monotonic()+10
+              while time.monotonic()<deadline:
+                  try: os.killpg(pgid,0)
+                  except ProcessLookupError: break
+                  time.sleep(.2)
+              else:
+                  try: os.killpg(pgid,signal.SIGKILL)
+                  except ProcessLookupError: pass
+              stopped.append(pgid)
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'moderation-original-hosts'
+          result={'ownedProcessGroupsStopped':stopped,'hostsRestored':None}
+          if backup.exists():
+              original=backup.read_bytes()
+              subprocess.run(['sudo','tee','/etc/hosts'],input=original,stdout=subprocess.DEVNULL,check=True)
+              assert pathlib.Path('/etc/hosts').read_bytes()==original
+              result.update(hostsRestored=True,originalHostsSha256=hashlib.sha256(original).hexdigest())
+          (evidence/'network-restoration.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result))
+          PY
+      - name: Upload actual source proof counts logs and isolation restoration
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: moderation-v4-core-${{ github.run_id }}
+          path: app/qa-evidence/
+          retention-days: 7
+          if-no-files-found: error
+
