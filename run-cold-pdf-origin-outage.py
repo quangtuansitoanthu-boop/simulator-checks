@@ -155,7 +155,7 @@ def main():
     assert len(expected) == 3292
     critical = ['package.json', 'package-lock.json', 'src/service-worker.ts', 'src/lib/components/library/ReaderBoundary.svelte',
                 'src/lib/components/reader/PdfCanvasReader.svelte', 'src/lib/browser/offline-pdf-database.ts',
-                'src/lib/browser/offline-pdf-downloads.ts', 'tests/e2e/runtime-helpers.ts']
+                'src/lib/browser/pdf-offline-downloads.ts', 'tests/e2e/runtime-helpers.ts']
     for name in critical:
         data = (app / name).read_bytes()
         assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == expected[name]
