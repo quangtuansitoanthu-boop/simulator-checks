@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "readyForPublication": true,
+  "scope": "Two E2E view-button name selectors only, after immutable frozen V7 producer; no application/runtime change",
+  "producerManifest": "moderation-v7-overlay.json",
+  "producerManifestSha256": "8d2ab07f5287323dd52a93e69259962c94e7793dd05d8f65956e5dd6df58d9ab",
+  "producerArchiveSha256": "712f777420904fd39d498d56bf357d6c603c1d6d8415562758e1cdfad345078a",
+  "producerExpectedMapSha256": "a29c9ee3088385c054806f46cc3eec85428173c10cd0bcf400845ecb78f9da99",
+  "producerSourceFiles": 3292,
+  "producerChangedRuntimeFiles": 89,
+  "archive": "v7-ui-view-fix.tar.gz",
+  "archiveSha256": "228ce4498e3d3acd5b5f97d24ea461624c5e447648b3eed565fb394cf8d72d11",
+  "archiveBytes": 9543,
+  "fileCount": 2,
+  "files": [
+    {
+      "path": "tests/e2e/admin-community-moderation.spec.ts",
+      "operation": "modify",
+      "classification": "test",
+      "runtime": false,
+      "baseGitBlobSha1": "cab99c828d34ddb7d8243c61bf64dc0b03c1215c",
+      "beforeSha256": "cf775cc76f830662cef9e8c1a7e295792820ffbf88d130653bc0f67f92dee608",
+      "beforeBytes": 21421,
+      "gitBlobSha1": "458c91851482556b7936a1802c38efbe681f688f",
+      "sha256": "f3c9e52b722789b88db971cd73f18a74c0821ec060b5f96e85a71ac9f82c25cf",
+      "bytes": 21491,
+      "selectorReplacement": {
+        "before": "name: 'Xem nội dung & ngữ cảnh', exact: true",
+        "after": "name: /^(?:▼\\s*)?Xem nội dung & ngữ cảnh$/u, exact: true",
+        "count": 5
+      }
+    },
+    {
+      "path": "tests/e2e/mindful-moderation-48h.spec.ts",
+      "operation": "modify",
+      "classification": "test",
+      "runtime": false,
+      "baseGitBlobSha1": "7d85a932bd45c2f5ae5002fc34ce29ea49b5052a",
+      "beforeSha256": "4d3be0034779954d8483d22b49d12546cdb3ce62af510dc6dbc60aee77250df6",
+      "beforeBytes": 20226,
+      "gitBlobSha1": "a7a84399367f4db224fced215951f9da578c4425",
+      "sha256": "7003d2a34cb32e071a86a3de775ce0277ed680de6f2d00ea8b4899e230472ac7",
+      "bytes": 20254,
+      "selectorReplacement": {
+        "before": "name: 'Xem bài', exact: true",
+        "after": "name: /^(?:▼\\s*)?Xem bài$/u, exact: true",
+        "count": 2
+      }
+    }
+  ],
+  "executionExpectedMapSha256": "54f0133f52c13afa6faced0ebc88d29aa80bce5e317dfa2b465393c7440521c8",
+  "executionSourceFiles": 3292,
+  "unchangedProducerFiles": 3290,
+  "unchangedRuntimeFiles": 89,
+  "changedRuntimeFiles": 0,
+  "nativeProductRebuildRequired": false,
+  "sourceMapPhase": "after-two-test-amendments-before-unchanged-approved-browser-fixture-staging",
+  "allowedViewGlyph": "U+25BC only; expanded collapse label is not matched",
+  "assertionsCountersRoutesScopesTimeoutsUnchangedOutsideExactSelectorReplacements": true,
+  "skipRetryFailWaivers": 0
+}
