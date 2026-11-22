@@ -1,0 +1,85 @@
+# Metadata only. No simulator boot/create/erase, app install, build, or test.
+name: Inventory existing iOS simulator metadata
+on:
+  workflow_dispatch: null
+  push:
+    branches:
+      - codex/full-mobile-audit-20261121
+    paths:
+      - .github/workflows/ios-existing-runtime-inventory.yml
+permissions:
+  contents: read
+concurrency:
+  group: ios-existing-runtime-inventory-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  inventory:
+    runs-on: xcode-27
+    timeout-minutes: 5
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+    steps:
+      - name: Read existing runtime and device metadata only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess,time
+          assert os.environ['GITHUB_ACTIONS']=='true'
+          assert os.environ['GITHUB_REPOSITORY']=='quangtuansitoanthu-boop/simulator-checks'
+          assert os.environ['DEVELOPER_DIR']=='/Applications/Xcode_27.1.app/Contents/Developer'
+          output=pathlib.Path('inventory-evidence');output.mkdir(exist_ok=True)
+          deadline=time.monotonic()+240;records=[];values={}
+          commands=[('available-devices.json',['xcrun','simctl','list','devices','available','-j'],True),
+                    ('installed-runtimes.json',['xcrun','simctl','list','runtimes','-j'],True),
+                    ('xcode-version.txt',['xcodebuild','-version'],False),
+                    ('host-version.txt',['sw_vers'],False)]
+          for name,command,is_json in commands:
+              remaining=deadline-time.monotonic()
+              record={'command':command,'file':name,'passed':False,'timeoutSeconds':min(60,max(0,remaining))}
+              records.append(record)
+              if remaining<=0:record['error']='total metadata deadline exhausted';break
+              try:
+                  result=subprocess.run(command,timeout=min(60,remaining),check=True,capture_output=True,text=True,errors='replace')
+                  assert len(result.stdout.encode())<=2*1024*1024,'Metadata output exceeds 2MiB cap'
+                  (output/name).write_text(result.stdout)
+                  if result.stderr:(output/(name+'.stderr.txt')).write_text(result.stderr[:65536])
+                  if is_json:values[name]=json.loads(result.stdout)
+                  record['passed']=True
+              except (subprocess.TimeoutExpired,subprocess.CalledProcessError) as error:
+                  stdout=error.stdout or '';stderr=error.stderr or ''
+                  if isinstance(stdout,bytes):stdout=stdout.decode(errors='replace')
+                  if isinstance(stderr,bytes):stderr=stderr.decode(errors='replace')
+                  (output/(name+'.failed.stdout.txt')).write_text(stdout[:65536])
+                  (output/(name+'.failed.stderr.txt')).write_text(stderr[:65536])
+                  record['errorType']=type(error).__name__
+          report={'scope':'Read-only existing simulator metadata; availability is not device health',
+                  'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],
+                  'harnessCommit':os.environ['GITHUB_SHA'],'records':records,'bootedOrCreatedDevices':False,
+                  'installedAppsOrBuiltOrTested':False,'iosRuntimes':[],'existingIosDevices':[]}
+          if 'installed-runtimes.json' in values:
+              for runtime in values['installed-runtimes.json']['runtimes']:
+                  if runtime.get('platform')=='iOS' or '.iOS-' in runtime.get('identifier',''):
+                      report['iosRuntimes'].append({key:runtime.get(key) for key in ('name','version','buildversion','identifier','isAvailable')})
+          runtimes={row['identifier']:row for row in report['iosRuntimes']}
+          if 'available-devices.json' in values:
+              for identifier,devices in values['available-devices.json']['devices'].items():
+                  if '.iOS-' not in identifier:continue
+                  for device in devices:
+                      row={key:device.get(key) for key in ('name','udid','state','isAvailable','deviceTypeIdentifier')}
+                      row.update({'runtimeIdentifier':identifier,'runtimeVersion':runtimes.get(identifier,{}).get('version'),
+                                  'runtimeBuild':runtimes.get(identifier,{}).get('buildversion'),
+                                  'matchesExistingIPhoneSelection':device.get('name','').startswith('iPhone') and 'Duo' not in device.get('name','')})
+                      report['existingIosDevices'].append(row)
+          report['complete']=len(records)==4 and all(row['passed'] for row in records)
+          (output/'existing-ios-inventory.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps({'complete':report['complete'],'iosRuntimeCount':len(report['iosRuntimes']),
+                            'existingIosDeviceCount':len(report['existingIosDevices']),'deviceActions':0}))
+          assert report['complete'],'Existing metadata inventory incomplete; no device actions attempted'
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: existing-ios-runtime-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: inventory-evidence/
+          retention-days: 3
+          if-no-files-found: error
