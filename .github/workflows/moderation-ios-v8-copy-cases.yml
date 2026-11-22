@@ -1,0 +1,628 @@
+# REVIEW ARTIFACT: coordinator publishes only after static review.
+# Reuse exact V8 Products; original failed/infra producer outcomes remain unchanged.
+# Recovery is pre-test infrastructure only; this does not claim a Copy product fix.
+name: V8 Copy original iOS27 case from immutable Products
+on:
+  workflow_dispatch: null
+  push:
+    branches:
+      - codex/full-mobile-audit-20261121
+    paths:
+      - .github/workflows/moderation-ios-v8-copy-cases.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: moderation-ios-v8-copy-cases-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  BASE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+  UI_FIXES_MANIFEST_SHA256: b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295
+  CURRENT_FOLLOW_UP_MANIFEST_SHA256: 9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137
+  QA_TEST_FOLLOW_UP_MANIFEST_SHA256: eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa
+  LATE_OVERLAY_MANIFEST_SHA256: 934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd
+  CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256: d8748f7c8d0d44489b632a1dff08b87dcf4d5c7fe734f6a35c5581189e5811f3
+  CURRENT_SOURCE_OVERLAY_HELPER_SHA256: b25948aebdbd5bad70bcb9a362089395b7d6a7542ed14ec9943e9781991557f0
+  CURRENT_SOURCE_EXPECTED_MAP_SHA256: 4b50884e600842c5433706fe08998c2d32c1b084f31f924a0834aae7a05dbb7b
+  CURRENT_SOURCE_EXPECTED_FILE_COUNT: 3294
+  CURRENT_SOURCE_ADDED_FILE_COUNT: 19
+  CURRENT_SOURCE_OVERLAY_FILE_COUNT: 131
+  IOS_HARNESS_SHA256: fdf7606b6669c6c8cf699c2cba6eb029cdeb89a68536a0df5ab452ed9224377a
+  IOS_CASE_RUNNER_SHA256: f94c21c24b8fd6693c21dc12c761e1cccc96b6feeafcda2c1550e69c5ac4c9d3
+  IOS_INVENTORY_CASE_RUNNER_SHA256: ad4514cf9ad9fea0257c508340af7c664bd006304721ff10b346e9e27339a174
+  TUTAM_RUNTIME_MANIFEST_SHA256: cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7
+  RUNTIME_DATA_HELPER_SHA256: e9b71b2d90f559ddfbcb217315cc3849b0b6689af9c09159fa963321b42b4024
+  IOS_ISOLATION_HELPER_SHA256: 73199616b69b41ba3a860907efe5545d516b41d248239697173e77009a27cd0b
+  TUTAM_TEST_SUPPORT_MANIFEST_SHA256: 4075d004b03ea59c44337cb9296713fc22a6e21bfe9d2c2ebd90dd17d97a8e9c
+  TEST_SUPPORT_HELPER_SHA256: fcbe767b43d3a5d9a1e85d37adac681b871618d48bde280da3e4e6c7f5b0d023
+  IOS_QA_GOOGLE_CLIENT_ID: 1234567890-ios-qa.apps.googleusercontent.com
+  PRODUCTS_BUILD_CASE_RUNNER_SHA256: f94c21c24b8fd6693c21dc12c761e1cccc96b6feeafcda2c1550e69c5ac4c9d3
+  PRODUCTS_SOURCE_RUN_ID: "45033680115"
+  PRODUCTS_SOURCE_RUN_ATTEMPT: "1"
+  PRODUCTS_SOURCE_HEAD_SHA: 21d29e369602832acee0b46259a07cde36fc259d
+  PRODUCTS_SOURCE_PROOF_SHA256: 4efb083439622b17185e41941495d51572e799600dcde6e3b10cf7e17ee613c6
+  PRODUCTS_GENERATED_INFO_PROOF_SHA256: fb27a05c4eed366502a5f547ace5f5184a5188e28645c89d812254344df4de68
+  CURRENT_SOURCE_OVERLAY_ARCHIVE_SHA256: 288e713ffa7abb4c157875947e8b098c88f16c0dcedda8805a612ac4f686b03a
+  CURRENT_SOURCE_RUNTIME_FILE_COUNT: "91"
+  CURRENT_SOURCE_TEST_FILE_COUNT: "40"
+jobs:
+  ios-cases:
+    name: V8 Copy iOS ${{ matrix.ios }} ${{ matrix.group }} reused Products
+    if: ${{ always() && !cancelled() }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 85
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - ios: "27.0"
+            runner: xcode-27
+            xcode: /Applications/Xcode_27.1.app/Contents/Developer
+            group: copy-focus
+            products_artifact_id: "14758557772"
+            products_artifact_digest: 7a148da64afe3c48e7a00d019ba943113bb7c64a3eafa575c385789e40b30f7c
+            products_artifact_bytes: 144099960
+            products_metadata_sha256: 7fa4d2a7b4938069a79b4707cdd3763466acfb2ea67bb4a56d0c19c3f756a3e3
+            products_archive_sha256: aed3d78b21fb8cca361e282ab9232f8077db1925e9ca4d483f9a6b80f8fd6a9b
+            products_build_job_id: "137242584164"
+    env:
+      DEVELOPER_DIR: ${{ matrix.xcode }}
+      IOS_RUNTIME: ${{ matrix.ios }}
+      TUTAM_QA_NATIVE_OS_LOGS: "1"
+      PRODUCTS_ARTIFACT_ID: ${{ matrix.products_artifact_id }}
+      PRODUCTS_ARTIFACT_DIGEST: ${{ matrix.products_artifact_digest }}
+      PRODUCTS_ARTIFACT_BYTES: ${{ matrix.products_artifact_bytes }}
+      PRODUCTS_METADATA_SHA256: ${{ matrix.products_metadata_sha256 }}
+      PRODUCTS_ARCHIVE_SHA256: ${{ matrix.products_archive_sha256 }}
+      PRODUCTS_BUILD_JOB_ID: ${{ matrix.products_build_job_id }}
+      IOS_CASE_GROUP: ${{ matrix.group }}
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Verify and apply exact current source
+        run: |-
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,os,pathlib,re,subprocess
+          h=pathlib.Path('../harness')
+          pins={'BASE_SOURCE_MANIFEST_SHA256':'mobile-current-manifest.json','UI_FIXES_MANIFEST_SHA256':'ui-fixes.json','CURRENT_FOLLOW_UP_MANIFEST_SHA256':'current-follow-up.json','QA_TEST_FOLLOW_UP_MANIFEST_SHA256':'qa-test-follow-up.json','LATE_OVERLAY_MANIFEST_SHA256':'late-overlay.json','CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256':'moderation-v8-overlay.json','CURRENT_SOURCE_OVERLAY_HELPER_SHA256':'apply-moderation-v8.py','PRODUCTS_BUILD_CASE_RUNNER_SHA256':'run-ios-diagnostics-focus.py','IOS_CASE_RUNNER_SHA256':'run-ios-diagnostics-focus.py','IOS_INVENTORY_CASE_RUNNER_SHA256':'run-ios-cases-v7.py','TUTAM_RUNTIME_MANIFEST_SHA256':'runtime-data-manifest.json','RUNTIME_DATA_HELPER_SHA256':'apply-runtime-data.py','IOS_ISOLATION_HELPER_SHA256':'ios-isolate.py','TUTAM_TEST_SUPPORT_MANIFEST_SHA256':'test-support-manifest.json','TEST_SUPPORT_HELPER_SHA256':'apply-test-support.py'}
+          for variable,name in pins.items():
+              expected=os.environ[variable]
+              assert re.fullmatch(r'[0-9a-f]{64}',expected),'Unfilled final publication pin: '+variable
+              assert hashlib.sha256((h/name).read_bytes()).hexdigest()==expected,name
+          assert re.fullmatch(r'[0-9a-f]{64}',os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256'])
+          expected_count=int(os.environ['CURRENT_SOURCE_EXPECTED_FILE_COUNT'])
+          added_count=int(os.environ['CURRENT_SOURCE_ADDED_FILE_COUNT'])
+          assert expected_count==3275+added_count and added_count>0
+          assert int(os.environ['CURRENT_SOURCE_OVERLAY_FILE_COUNT'])>0
+          assert subprocess.check_output(['git','--no-optional-locks','-C',str(h),'rev-parse','HEAD'],text=True).strip()==os.environ['GITHUB_SHA']
+          PY
+          python3 ../harness/apply-current.py .
+          python3 ../harness/apply-ui-fixes.py .
+          python3 ../harness/apply-current-follow-up.py .
+          python3 ../harness/apply-qa-test-follow-up.py .
+          python3 ../harness/apply-late-overlay.py .
+          python3 ../harness/apply-moderation-v8.py .
+          python3 ../harness/apply-runtime-data.py .
+          python3 ../harness/apply-test-support.py .
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,runpy
+          h=pathlib.Path('../harness');q=pathlib.Path('qa-evidence')
+          expected_count=int(os.environ['CURRENT_SOURCE_EXPECTED_FILE_COUNT']);added_count=int(os.environ['CURRENT_SOURCE_ADDED_FILE_COUNT'])
+          sha=lambda path:hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+          blob=lambda data:hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+          manifest=json.loads((h/'moderation-v8-overlay.json').read_bytes())
+          report=json.loads((q/'moderation-brand-source-verification.json').read_bytes())
+          expected=json.loads((q/'moderation-brand-expected.json').read_bytes())
+          assert manifest['phase']=='final' and manifest['readyForPublication'] is True
+          assert manifest['archiveSha256']==os.environ['CURRENT_SOURCE_OVERLAY_ARCHIVE_SHA256']
+          assert manifest['runtimeFileCount']==int(os.environ['CURRENT_SOURCE_RUNTIME_FILE_COUNT'])
+          assert sum(not item['runtime'] for item in manifest['files'])==int(os.environ['CURRENT_SOURCE_TEST_FILE_COUNT'])
+          assert report['status']=='EXACT_MODERATION_BRAND_SOURCE_VERIFIED' and report['phase']=='final'
+          assert report['manifestSha256']==os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256']
+          assert report['fileCount']==manifest['fileCount']==int(os.environ['CURRENT_SOURCE_OVERLAY_FILE_COUNT'])
+          assert report['currentExpectedFileCount']==manifest['currentExpectedFileCount']==len(expected)==expected_count
+          assert report['addedFileCount']==manifest['addedFileCount']==added_count
+          assert report['currentExpectedMapSha256']==manifest['currentExpectedMapSha256']==os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256']==sha(q/'moderation-brand-expected.json')
+          assert report['files']==manifest['files'] and report['nativeFixtureOwnership']==manifest['nativeFixtureOwnership']
+          layers=[];runtime_paths=set()
+          for name,variable,proof_name,status in [
+           ('ui-fixes.json','UI_FIXES_MANIFEST_SHA256','ui-fixes-verification.json','EXACT_UI_FIXES_VERIFIED'),
+           ('current-follow-up.json','CURRENT_FOLLOW_UP_MANIFEST_SHA256','current-follow-up-verification.json','EXACT_CURRENT_FOLLOW_UP_VERIFIED'),
+           ('qa-test-follow-up.json','QA_TEST_FOLLOW_UP_MANIFEST_SHA256','qa-test-follow-up-verification.json','EXACT_QA_TEST_FOLLOW_UP_VERIFIED'),
+           ('late-overlay.json','LATE_OVERLAY_MANIFEST_SHA256','late-overlay-verification.json','EXACT_LATE_OVERLAY_VERIFIED'),
+           ('moderation-v8-overlay.json','CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256','moderation-brand-source-verification.json','EXACT_MODERATION_BRAND_SOURCE_VERIFIED')]:
+              layer=json.loads((h/name).read_bytes());proof=json.loads((q/proof_name).read_bytes())
+              assert proof['status']==status and proof['manifestSha256']==os.environ[variable]
+              assert proof.get('mode','all')=='all'
+              assert proof['fileCount']==layer['fileCount']
+              if 'archiveSha256' in proof:assert proof['archiveSha256']==layer['archiveSha256']
+              runtime_paths.update(layer.get('runtimePaths',[]))
+              layers.append({'manifest':name,'manifestSha256':os.environ[variable],'archiveSha256':layer['archiveSha256'],'fileCount':layer['fileCount']})
+          runtime_files=[]
+          for name in sorted(runtime_paths):
+              data=pathlib.Path(name).read_bytes()
+              assert blob(data)==expected[name],name
+              runtime_files.append({'path':name,'sha256':hashlib.sha256(data).hexdigest(),'gitBlobSha1':blob(data),'bytes':len(data)})
+          native_paths={item['path'] for item in manifest['files'] if item['classification']=='native-test'}
+          assert native_paths=={'ios/App/AppUITests/NativeGuestSmokeTests.swift','android/app/src/androidTest/java/vn/quangtu/tutam/audio/DharmaAudioWidgetInitialLayoutTest.java','android/app/src/androidTest/java/vn/quangtu/tutam/widgets/CalendarWidgetRenderingTest.java'}
+          native_files=[item for item in manifest['files'] if item['path'] in native_paths]
+          assert all(sha(item['path'])==item['sha256'] for item in native_files)
+          swift=pathlib.Path('ios/App/AppUITests/NativeGuestSmokeTests.swift')
+          assert sha(swift)==os.environ['IOS_HARNESS_SHA256']
+          module=runpy.run_path(str(h/'run-ios-cases-v7.py'));groups=module['GROUPS']
+          assert {key:len(value) for key,value in groups.items()}=={'smoke':4,'extended':5,'personal':2,'snapshot':2}
+          identifiers=[value for values in groups.values() for value in values]
+          focus_module=runpy.run_path(str(h/'run-ios-diagnostics-focus.py'));focus_groups=focus_module['GROUPS']
+          focus_identifiers=['NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost', 'NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence', 'NativePersonalReminderTests/testPersonalNearFutureReminderDeliversToSystemAndCanBeDeleted', 'NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']
+          focus_selection={'copy-focus': ['NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost'], 'crud-focus': ['NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence'], 'near-future-focus': ['NativePersonalReminderTests/testPersonalNearFutureReminderDeliversToSystemAndCanBeDeleted'], 'vegan-focus': ['NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']}
+          assert set(focus_groups)==set(groups)|set(focus_selection)
+          assert all(focus_groups[key]==value for key,value in groups.items())
+          assert all(focus_groups[key]==value for key,value in focus_selection.items())
+          actual=[];owner=None
+          for line in swift.read_text().splitlines():
+              kind=re.search(r'^(?:final )?class (\w+)',line)
+              if kind:owner=kind.group(1)
+              method=re.search(r'^    func (test\w+)\(',line)
+              if method:actual.append(owner+'/'+method.group(1))
+          assert len(actual)==len(identifiers)==len(set(identifiers))==13 and set(actual)==set(identifiers)
+          assert 'copy-before-native-url-open' in swift.read_text() and 'copy-after-native-url-open' in swift.read_text()
+          runtime=json.loads((q/'runtime-data-verification.json').read_bytes())
+          assert runtime['status']=='EXACT_RUNTIME_DATA_VERIFIED' and runtime['fileCount']==7
+          assert runtime['manifestSha256']==os.environ['TUTAM_RUNTIME_MANIFEST_SHA256']
+          assert all(sha(item['path'])==item['sha256'] for item in runtime['files'])
+          support=json.loads((q/'test-support-verification.json').read_bytes())
+          assert support['status']=='EXACT_TEST_SUPPORT_VERIFIED' and support['fileCount']==2 and support['executedConfiguration'] is False
+          assert support['manifestSha256']==os.environ['TUTAM_TEST_SUPPORT_MANIFEST_SHA256']
+          assert all(sha(item['path'])==item['sha256'] for item in support['files'])
+          proof={'schemaVersion':2,'baseSourceManifestSha256':os.environ['BASE_SOURCE_MANIFEST_SHA256'],
+           'currentSourceOverlayManifestSha256':os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256'],
+           'currentSourceOverlayArchiveSha256':manifest['archiveSha256'],'currentSourceOverlayFileCount':manifest['fileCount'],
+           'currentSourceExpectedMapSha256':report['currentExpectedMapSha256'],'currentSourceExpectedFileCount':expected_count,'currentSourceAddedFileCount':added_count,
+           'currentSourceRuntimeFiles':runtime_files,'sourceLayers':layers,'nativeFixtureOwnership':manifest['nativeFixtureOwnership'],
+           'nativeFixtureFiles':native_files,'harnessSha256':sha(swift),'testMethodCount':13,'testIdentifiers':identifiers,
+           'producerBuildCaseRunnerSha256':sha(h/'run-ios-diagnostics-focus.py'),'executionCaseRunnerSha256':sha(h/'run-ios-diagnostics-focus.py'),'inventoryCaseRunnerSha256':sha(h/'run-ios-cases-v7.py'),
+           'producerFocusedTestMethodCount':4,'producerFocusedTestIdentifiers':focus_identifiers,'producerFocusedGroups':focus_selection,'runtimeDataManifestSha256':runtime['manifestSha256'],
+           'runtimeDataArchiveSha256':runtime['archiveSha256'],'runtimeDataFiles':runtime['files'],
+           'testSupportManifestSha256':support['manifestSha256'],'testSupportFiles':support['files'],
+           'simulatorReadinessPolicy':{'command':'xcrun simctl listapps','timeoutSeconds':120,'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750}}
+          (q/'consumer-source-validation.json').write_text(json.dumps(proof,indent=2)+'\n')
+          PY
+      - name: Restore verified source proof for this test job
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-evidence
+          cp qa-evidence/*verification.json build/release-evidence/
+          cp qa-evidence/consumer-source-validation.json build/release-evidence/
+      - name: Verify immutable producer builds and selected Products through read-only API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |-
+          python3 - <<'PY'
+          import json,os,pathlib,urllib.request
+          repo=os.environ['GITHUB_REPOSITORY'];run=os.environ['PRODUCTS_SOURCE_RUN_ID'];attempt=os.environ['PRODUCTS_SOURCE_RUN_ATTEMPT']
+          assert repo=='quangtuansitoanthu-boop/simulator-checks'
+          def get(path):
+              request=urllib.request.Request('https://api.github.com/repos/'+repo+path,
+                  headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(request,timeout=45) as response:return json.load(response)
+          source=get('/actions/runs/'+run)
+          assert str(source['id'])==run and str(source['run_attempt'])==attempt
+          assert source['head_sha']==os.environ['PRODUCTS_SOURCE_HEAD_SHA'] and source['head_branch']=='codex/full-mobile-audit-20261121'
+          assert source['status']=='completed' and source['conclusion']=='failure','Preserve actual failed producer workflow; never relabel it as success'
+          assert source['path']=='.github/workflows/moderation-ios-v8-diagnostics.yml'
+          response=get('/actions/runs/'+run+'/attempts/'+attempt+'/jobs?per_page=100');jobs=response['jobs'];assert response['total_count']==len(jobs)<=100
+          selected=[]
+          for job_id,ios in [('137242584164','27.0')]:
+              matches=[job for job in jobs if str(job['id'])==job_id];assert len(matches)==1
+              job=matches[0]
+              assert job['name']=='Build reviewed iOS '+ios+' products once' and job['status']=='completed' and job['conclusion']=='success'
+              assert any(step['name']=='Require Foundation diagnostic transport roundtrip before native build' and step['conclusion']=='success' for step in job['steps'])
+              selected.append({key:job[key] for key in ('id','name','status','conclusion')})
+          focus=[]
+          for focus_id,name in [('137243459463','iOS 27.0 copy-focus'),('137243459503','iOS 27.0 crud-focus'),('137243459539','iOS 27.0 near-future-focus'),('137243459535','iOS 27.0 vegan-focus')]:
+              matches=[job for job in jobs if str(job['id'])==focus_id];assert len(matches)==1
+              item=matches[0];assert item['name']==name and item['status']=='completed'
+              assert item['conclusion']==('success' if focus_id=='137243459535' else 'failure')
+              focus.append({**{key:item[key] for key in ('id','name','status','conclusion')},'failedSteps':[{key:s[key] for key in ('name','status','conclusion')} for s in item['steps'] if s['conclusion'] not in (None,'success','skipped')]})
+          focus_artifacts=get('/actions/runs/'+run+'/artifacts?per_page=100');assert focus_artifacts['total_count']<=100
+          focus_artifacts=[{key:item[key] for key in ('id','name','digest','expired','size_in_bytes')} for item in focus_artifacts['artifacts'] if 'ios-v8-diagnostic-evidence-' in item['name']]
+          expected_focus_artifacts={14758164351:('copy-focus','1eb705ae54d83a08dcc51867cb29e439cec4f1f73edb5f080facc7c6accb2b43',3416448),14759406579:('crud-focus','46f77020e442892b71dfa64f0b71cbec54c9bb4e788fd4cd092c2c140adb20bd',40044632),14758923558:('near-future-focus','1e91db1b29ebc169760fbc7f93d8ae2a040b441029a6876775f5679e1406c306',61717896),14759371159:('vegan-focus','e5c7e884ef44898697123833cfc03b9331b05b95d03936f5274359fe008de456',13967517)}
+          assert {row['id'] for row in focus_artifacts}==set(expected_focus_artifacts)
+          for row in focus_artifacts:
+              group,digest,size=expected_focus_artifacts[row['id']]
+              assert row['name']=='ios-v8-diagnostic-evidence-27.0-'+group+'-'+run+'-'+attempt
+              assert row['digest']=='sha256:'+digest and row['size_in_bytes']==size and row['expired'] is False
+          artifact=get('/actions/artifacts/'+os.environ['PRODUCTS_ARTIFACT_ID'])
+          assert str(artifact['id'])==os.environ['PRODUCTS_ARTIFACT_ID'] and artifact['expired'] is False
+          assert artifact['name']=='ios-v8-diagnostic-products-'+os.environ['IOS_RUNTIME']+'-'+run+'-'+attempt
+          assert artifact['digest']=='sha256:'+os.environ['PRODUCTS_ARTIFACT_DIGEST'] and artifact['size_in_bytes']==int(os.environ['PRODUCTS_ARTIFACT_BYTES'])
+          assert str(artifact['workflow_run']['id'])==run and artifact['workflow_run']['head_sha']==source['head_sha']
+          assert artifact['workflow_run']['repository_id']==artifact['workflow_run']['head_repository_id']==1462236859
+          receipt={'sourceRunId':run,'sourceRunAttempt':attempt,'sourceHeadSha':source['head_sha'],
+           'sourceRunStatus':source['status'],'sourceRunConclusion':source['conclusion'],'sourceBuildJobs':selected,
+           'sourceWholeRunPassRequired':False,'producerFocusJobs':focus,'producerFocusArtifacts':focus_artifacts,'priorFocusFailuresRemainFailures':True,
+           'artifact':{key:artifact[key] for key in ('id','name','digest','expired','size_in_bytes')},
+           'currentTestRunId':os.environ['GITHUB_RUN_ID'],'currentTestRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],
+           'scope':'Reuse only exact successful build jobs. Producer focus status/failures remain actual historical results, never waived or relabeled. Consumer independently requires the one original Copy case to pass.'}
+          pathlib.Path('build/release-evidence/prebuilt-source-verification.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          print('Verified the producer build job succeeded; selected immutable Products API ID, digest, source commit and attempt match')
+          PY
+      - name: Download matching app runner and xctestrun
+        uses: actions/download-artifact@v6
+        with:
+          name: ios-v8-diagnostic-products-${{ matrix.ios }}-45033680115-1
+          run-id: 45033680115
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          path: ios-prebuilt
+      - name: Verify matching Products and restore full tree
+        run: |-
+          set -euo pipefail
+          cmp ../harness/moderation-v8-overlay.json ../ios-prebuilt/current-source-overlay-manifest.json
+          cmp ../harness/runtime-data-manifest.json ../ios-prebuilt/runtime-data-manifest.json
+          cmp qa-evidence/moderation-brand-expected.json ../ios-prebuilt/current-source-expected.json
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,plistlib,tarfile
+          root=pathlib.Path('../ios-prebuilt');sha=lambda p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
+          assert sha(root/'products-metadata.json')==os.environ['PRODUCTS_METADATA_SHA256']
+          metadata=json.loads((root/'products-metadata.json').read_bytes());proof=json.loads((root/'source-overlays-proof.json').read_bytes())
+          assert metadata['schemaVersion']==2 and all(metadata[key]==value for key,value in proof.items())
+          assert metadata['currentSourceOverlayManifestSha256']==os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256']
+          assert metadata['currentSourceExpectedMapSha256']==os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256']==sha(root/'current-source-expected.json')
+          assert metadata['harnessSha256']==os.environ['IOS_HARNESS_SHA256'] and metadata['caseRunnerSha256']==os.environ['PRODUCTS_BUILD_CASE_RUNNER_SHA256']
+          assert metadata['ios']==os.environ['IOS_RUNTIME']
+          assert metadata['workflowRunId']==os.environ['PRODUCTS_SOURCE_RUN_ID'] and metadata['workflowRunAttempt']==os.environ['PRODUCTS_SOURCE_RUN_ATTEMPT']
+          assert metadata['harnessRepositoryCommit']==os.environ['PRODUCTS_SOURCE_HEAD_SHA']
+          assert metadata['sourceOverlaysProofSha256']==sha(root/'source-overlays-proof.json')==os.environ['PRODUCTS_SOURCE_PROOF_SHA256']
+          consumer=json.loads(pathlib.Path('build/release-evidence/consumer-source-validation.json').read_bytes())
+          shared_keys=["schemaVersion","baseSourceManifestSha256","currentSourceOverlayManifestSha256","currentSourceOverlayArchiveSha256","currentSourceOverlayFileCount","currentSourceExpectedMapSha256","currentSourceExpectedFileCount","currentSourceAddedFileCount","currentSourceRuntimeFiles","sourceLayers","nativeFixtureOwnership","nativeFixtureFiles","harnessSha256","testMethodCount","testIdentifiers","runtimeDataManifestSha256","runtimeDataArchiveSha256","runtimeDataFiles","testSupportManifestSha256","testSupportFiles","simulatorReadinessPolicy"]
+          for key in shared_keys:assert consumer[key]==proof[key],key
+          assert consumer['producerBuildCaseRunnerSha256']==proof['caseRunnerSha256']==os.environ['PRODUCTS_BUILD_CASE_RUNNER_SHA256']
+          assert consumer['executionCaseRunnerSha256']==proof['caseRunnerSha256']==os.environ['IOS_CASE_RUNNER_SHA256']
+          assert consumer['inventoryCaseRunnerSha256']==proof['inventoryCaseRunnerSha256']==os.environ['IOS_INVENTORY_CASE_RUNNER_SHA256']
+          assert consumer['producerFocusedTestMethodCount']==proof['focusedTestMethodCount']==4
+          assert consumer['producerFocusedTestIdentifiers']==proof['focusedTestIdentifiers']==['NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost', 'NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence', 'NativePersonalReminderTests/testPersonalNearFutureReminderDeliversToSystemAndCanBeDeleted', 'NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']
+          assert consumer['producerFocusedGroups']==proof['focusedGroups']=={'copy-focus': ['NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost'], 'crud-focus': ['NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence'], 'near-future-focus': ['NativePersonalReminderTests/testPersonalNearFutureReminderDeliversToSystemAndCanBeDeleted'], 'vegan-focus': ['NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']}
+          assert proof['testMethodCount']==13 and len(proof['testIdentifiers'])==13
+          assert metadata['archiveSha256']==sha(root/'UITestProducts.tar.gz')==os.environ['PRODUCTS_ARCHIVE_SHA256']
+          config=json.loads((root/'ios-info-build-config.json').read_bytes());expected_info=plistlib.loads((root/'ios-info.expected.plist').read_bytes())
+          assert metadata['generatedIosInfo']==config and metadata['generatedIosInfoProofSha256']==sha(root/'ios-info-build-config.json')==os.environ['PRODUCTS_GENERATED_INFO_PROOF_SHA256']
+          assert config['schemaVersion']==1 and config['path']=='ios/App/App/Info.plist' and config['transform']=='configureIosGoogle'
+          assert config['publicQaClientId']==os.environ['IOS_QA_GOOGLE_CLIENT_ID'] and config['verifiedExactBytes'] is True
+          info_entry=next(item for item in proof['currentSourceRuntimeFiles'] if item['path']==config['path'])
+          assert sha(config['path'])==sha(root/'ios-info.original.plist')==config['sourceSha256']==info_entry['sha256']
+          assert pathlib.Path(config['path']).read_bytes()==(root/'ios-info.original.plist').read_bytes()
+          assert sha(root/'ios-info.expected.plist')==config['expectedSha256']==config['actualSha256']
+          assert config['sourceHelperPath']=='scripts/lib/ios-google-config.mjs' and sha(config['sourceHelperPath'])==config['sourceHelperSha256']
+          helper_data=pathlib.Path(config['sourceHelperPath']).read_bytes()
+          helper_blob=hashlib.sha1(b'blob '+str(len(helper_data)).encode()+b'\0'+helper_data).hexdigest()
+          assert helper_blob==config['sourceHelperGitBlobSha1']==json.loads((root/'current-source-expected.json').read_bytes())[config['sourceHelperPath']]
+          assert config['productIdentity']=={'bundleId':'vn.quangtu.tutam','bundleName':'App','displayName':expected_info['CFBundleDisplayName'],'urlTypes':expected_info['CFBundleURLTypes']}
+          for filename in ('ios-info.original.plist','ios-info.expected.plist','ios-info-build-config.json'):
+              pathlib.Path('build/release-evidence',filename).write_bytes((root/filename).read_bytes())
+          with tarfile.open(root/'UITestProducts.tar.gz','r:gz') as archive:
+              for member in archive:
+                  path=pathlib.PurePosixPath(member.name)
+                  assert not path.is_absolute() and '..' not in path.parts and path.parts[0]=='Products'
+                  assert not member.isdev() and not member.isfifo()
+                  if member.issym() or member.islnk():
+                      link=pathlib.PurePosixPath(member.linkname)
+                      assert not link.is_absolute() and '..' not in link.parts
+          pathlib.Path('build/release-evidence/products-metadata.json').write_bytes((root/'products-metadata.json').read_bytes())
+          pathlib.Path('build/release-evidence/source-overlays-proof.json').write_bytes((root/'source-overlays-proof.json').read_bytes())
+          module=__import__('runpy').run_path('../harness/run-ios-cases-v7.py');groups=module['GROUPS']
+          identifiers=[identifier for values in groups.values() for identifier in values]
+          assert identifiers==proof['testIdentifiers'] and len(set(identifiers))==13
+          group=os.environ['IOS_CASE_GROUP'];execution_groups=__import__('runpy').run_path('../harness/run-ios-diagnostics-focus.py')['GROUPS'];assert group=='copy-focus' and execution_groups[group]==['NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost']
+          receipt={'sourceRunId':metadata['workflowRunId'],'sourceRunAttempt':metadata['workflowRunAttempt'],'sourceHeadSha':metadata['harnessRepositoryCommit'],'ios':metadata['ios'],
+           'buildJobId':os.environ['PRODUCTS_BUILD_JOB_ID'],'artifactId':os.environ['PRODUCTS_ARTIFACT_ID'],'artifactDigest':os.environ['PRODUCTS_ARTIFACT_DIGEST'],'artifactBytes':int(os.environ['PRODUCTS_ARTIFACT_BYTES']),
+           'metadataSha256':sha(root/'products-metadata.json'),'archiveSha256':metadata['archiveSha256'],'sourceOverlaysProofSha256':metadata['sourceOverlaysProofSha256'],'generatedIosInfoProofSha256':metadata['generatedIosInfoProofSha256'],
+           'archiveMetadataEntriesRejected':True,'extractionPolicy':'Pinned Products subtree only; no root metadata exception; COPYFILE_DISABLE=1','currentTestRunId':os.environ['GITHUB_RUN_ID'],'currentTestRunAttempt':os.environ['GITHUB_RUN_ATTEMPT']}
+          execution={'schemaVersion':1,'executionCaseRunnerSha256':os.environ['IOS_CASE_RUNNER_SHA256'],'producerBuildCaseRunnerSha256':metadata['caseRunnerSha256'],'inventoryCaseRunnerSha256':metadata['inventoryCaseRunnerSha256'],
+           'compiledHarnessSha256':metadata['harnessSha256'],'compiledTestIdentifiers':identifiers,'executionGroup':group,'executionExpectedIdentifiers':execution_groups[group],'ios':os.environ['IOS_RUNTIME'],
+           'sourceManifestSha256':metadata['currentSourceOverlayManifestSha256'],'consumerSourceValidationSha256':sha('build/release-evidence/consumer-source-validation.json'),'producerSourceProofSha256':metadata['sourceOverlaysProofSha256'],
+           'producerMetadataSha256':sha(root/'products-metadata.json'),'producerRunId':metadata['workflowRunId'],'producerRunAttempt':metadata['workflowRunAttempt'],'producerHeadSha':metadata['harnessRepositoryCommit'],
+           'consumerRunId':os.environ['GITHUB_RUN_ID'],'consumerRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],
+           'readinessRecoveryPolicy':{'trigger':'selected-listapps-timeout-only','deadlineSeconds':120,'maxAttempts':1,'sameDevice':True,'beforeNativeInstall':True,'createsOrErasesDevice':False}}
+          pathlib.Path('build/release-evidence/prebuilt-products-verification.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          pathlib.Path('build/release-evidence/execution-provenance.json').write_text(json.dumps(execution,indent=2)+'\n')
+          PY
+          mkdir -p build/ios-simulator/Build
+          COPYFILE_DISABLE=1 tar -xzf ../ios-prebuilt/UITestProducts.tar.gz -C build/ios-simulator/Build Products
+          python3 - <<'PY'
+          import os,pathlib,plistlib
+          root=pathlib.Path('build/ios-simulator/Build');products=root/'Products'
+          assert not (root/'._Products').exists(),'Verified root AppleDouble must never be extracted'
+          assert len(list(products.glob('*.xctestrun')))==1
+          for name in ('App.app','AppUITests-Runner.app'):
+              bundle=products/'Debug-iphonesimulator'/name;info=plistlib.loads((bundle/'Info.plist').read_bytes())
+              executable=info['CFBundleExecutable'];assert pathlib.PurePosixPath(executable).name==executable
+              binary=bundle/executable;assert binary.is_file() and os.access(binary,os.X_OK),'Products executable mode must be preserved'
+          PY
+      - name: Verify production host isolation
+        run: python3 ../harness/ios-isolate.py enable
+      - name: Select and boot an existing matching iPhone
+        run: |
+          set -euo pipefail
+          test "$TUTAM_QA_HOSTS_ISOLATED" = 1
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,os,re,sys; d=json.load(sys.stdin)["devices"]; v=re.escape(os.environ["IOS_RUNTIME"].replace(".","-")); matches=[x for k in sorted(d) if re.search(r"\.iOS-"+v+r"(?:-|$)",k) for x in d[k] if x.get("isAvailable") and x["name"].startswith("iPhone") and "Duo" not in x["name"]]; assert matches,"No existing simulator for requested runtime"; print(matches[0]["udid"])')
+          echo "TUTAM_QA_SIMULATOR=$device" >> "$GITHUB_ENV"
+          if ! xcrun simctl list devices booted | grep -Fq "$device"; then xcrun simctl boot "$device"; fi
+          xcrun simctl bootstatus "$device" -b
+          TUTAM_QA_READINESS_DEVICE="$device" python3 - <<'PY'
+          import json,os,pathlib,re,signal,subprocess,time
+          qa=pathlib.Path('qa-evidence');qa.mkdir(parents=True,exist_ok=True)
+          evidence=pathlib.Path('build/release-evidence');evidence.mkdir(parents=True,exist_ok=True)
+          device=os.environ['TUTAM_QA_READINESS_DEVICE']
+          assert os.environ['GITHUB_ACTIONS']=='true' and os.environ['GITHUB_REPOSITORY']=='quangtuansitoanthu-boop/simulator-checks'
+          assert pathlib.Path.cwd().resolve()==pathlib.Path(os.environ['GITHUB_WORKSPACE']).resolve()/'app'
+          assert os.environ['IOS_RUNTIME']=='27.0' and os.environ['IOS_CASE_GROUP']=='copy-focus' and os.environ['TUTAM_QA_HOSTS_ISOLATED']=='1'
+          assert re.fullmatch(r'[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}',device)
+          records=[]
+          def capture(command,name,timeout=30):
+              started=time.monotonic();timed_out=False;ok=False;error=None;stdout='';stderr=''
+              process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,errors='replace',start_new_session=True)
+              try:
+                  stdout,stderr=process.communicate(timeout=timeout)
+                  ok=process.returncode==0
+                  if not ok:error='Command exited '+str(process.returncode)
+              except subprocess.TimeoutExpired as failure:
+                  timed_out=True;error='Command timed out after '+str(timeout)+' seconds'
+                  try:os.killpg(process.pid,signal.SIGKILL)
+                  except ProcessLookupError:pass
+                  try:stdout,stderr=process.communicate(timeout=0.1)
+                  except subprocess.TimeoutExpired:
+                      stdout,stderr=failure.stdout or '',failure.stderr or ''
+                      process.stdout.close();process.stderr.close()
+              if isinstance(stdout,bytes):stdout=stdout.decode(errors='replace')
+              if isinstance(stderr,bytes):stderr=stderr.decode(errors='replace')
+              text='COMMAND: '+' '.join(command)+'\nSTDOUT:\n'+stdout+'\nSTDERR:\n'+stderr+'\n'
+              if error:text+='ERROR: '+error+'\n'
+              for directory in (qa,evidence):(directory/name).write_text(text)
+              record={'command':command,'passed':ok,'timedOut':timed_out,'timeoutSeconds':timeout,'elapsedSeconds':time.monotonic()-started,'output':name,'error':error}
+              records.append(record)
+              return record
+          # Help is diagnostic only: it timed out even in V8's successful Vegan case.
+          capture(['xcrun','simctl','help','listapps'],'simulator-listapps-help.txt')
+          initial=capture(['xcrun','simctl','listapps',device],'simulator-app-services-ready.txt',120)
+          ready=initial['passed']
+          recovery={'attempted':False,'trigger':'selected-listapps-timeout-only','deadlineSeconds':120,'device':device,'stage':'pre-test infrastructure only','actualNativeTestsBeforeRecovery':0,'records':[],'status':'not-needed' if ready else 'not-eligible'}
+          if not ready and initial['timedOut']:
+              recovery['attempted']=True;recovery['status']='failed';started=time.monotonic();deadline=started+120
+              sequence=[(['xcrun','simctl','shutdown',device],'simulator-recovery-shutdown.txt'),
+                        (['xcrun','simctl','boot',device],'simulator-recovery-boot.txt'),
+                        (['xcrun','simctl','bootstatus',device,'-b'],'simulator-recovery-bootstatus.txt'),
+                        (['xcrun','simctl','listapps',device],'simulator-recovery-app-services-ready.txt')]
+              for command,name in sequence:
+                  # Reserve a fraction of the same deadline for kill/pipe cleanup; never start outside it.
+                  remaining=deadline-time.monotonic()-0.25
+                  if remaining<=0:recovery['deadlineExhausted']=True;break
+                  record=capture(command,name,min(120,remaining));recovery['records'].append(record)
+                  if not record['passed']:break
+              recovery['elapsedSeconds']=time.monotonic()-started
+              ready=len(recovery['records'])==4 and all(row['passed'] for row in recovery['records']) and recovery['elapsedSeconds']<=120
+              recovery['status']='recovered' if ready else 'failed'
+          for command,name in [(['xcrun','simctl','list','devices','booted','-j'],'simulator-booted-devices.txt'),
+                               (['xcrun','simctl','list','runtimes','-j'],'simulator-installed-runtimes.txt'),
+                               (['sw_vers'],'simulator-host-os.txt'),(['xcodebuild','-version'],'simulator-xcode-version.txt')]:capture(command,name)
+          result={'ready':ready,'ios':os.environ['IOS_RUNTIME'],'device':device,'records':records,'recovery':recovery,
+                  'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750}
+          for directory in (qa,evidence):(directory/'simulator-readiness.json').write_text(json.dumps(result,indent=2)+'\n')
+          assert ready,'Simulator app installation services were not ready before native execution'
+          PY
+      - name: Run exact native group on fresh per-case installs
+        run: MOBILE_SOURCE_MANIFEST_SHA256="$CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256" python3 ../harness/run-ios-diagnostics-focus.py --group '${{ matrix.group }}'
+      - name: Export readable evidence and enforce exact counts
+        if: always()
+        run: MOBILE_SOURCE_MANIFEST_SHA256="$CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256" python3 ../harness/run-ios-diagnostics-focus.py --group '${{ matrix.group }}' --collect-only
+      - name: Stop simulator before restoring resolution
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "${TUTAM_QA_SIMULATOR:-}" ]]; then
+            state=$(xcrun simctl list devices -j | python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; print(next(x["state"] for v in d.values() for x in v if x["udid"]==os.environ["TUTAM_QA_SIMULATOR"]))')
+            if [[ "$state" != Shutdown ]]; then xcrun simctl shutdown "$TUTAM_QA_SIMULATOR"; fi
+          fi
+          python3 ../harness/ios-isolate.py restore
+      - name: Upload readable native evidence and raw results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-v8-copy-case-evidence-${{ matrix.ios }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/release-evidence/
+          retention-days: 7
+          if-no-files-found: error
+  ios-gate:
+    name: Require one actual original V8 Copy execution
+    needs:
+      - ios-cases
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      IOS_CASES_RESULT: ${{ needs.ios-cases.result }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: ios-v8-copy-case-evidence-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-native-evidence
+      - name: Require the original Copy case once on iOS27
+        run: |-
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,plistlib,runpy
+          root=pathlib.Path('ios-native-evidence');root.mkdir(exist_ok=True)
+          result={'status':'FAILED','expectedTests':1,'failedTests':None,'skippedTests':None,'groups':1}
+          try:
+              expected_count=int(os.environ['CURRENT_SOURCE_EXPECTED_FILE_COUNT']);added_count=int(os.environ['CURRENT_SOURCE_ADDED_FILE_COUNT'])
+              sha=lambda path:hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+              assert sha('harness/run-ios-cases-v7.py')==os.environ['IOS_INVENTORY_CASE_RUNNER_SHA256']
+              assert sha('harness/run-ios-diagnostics-focus.py')==os.environ['IOS_CASE_RUNNER_SHA256']
+              assert sha('harness/moderation-v8-overlay.json')==os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256']
+              manifest=json.loads(pathlib.Path('harness/moderation-v8-overlay.json').read_bytes())
+              assert manifest['phase']=='final' and manifest['readyForPublication'] is True
+              assert manifest['currentExpectedMapSha256']==os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256']
+              assert manifest['currentExpectedFileCount']==expected_count and manifest['addedFileCount']==added_count
+              assert manifest['fileCount']==int(os.environ['CURRENT_SOURCE_OVERLAY_FILE_COUNT'])
+              module=runpy.run_path('harness/run-ios-cases-v7.py');groups=module['GROUPS']
+              assert {key:len(value) for key,value in groups.items()}=={'smoke':4,'extended':5,'personal':2,'snapshot':2}
+              executed={'copy-focus':['NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost']}
+              expected={('27.0','copy-focus')}
+              summaries=list(root.rglob('native-ui-summary.json'))
+              assert len(summaries)==1,'Expected exactly one actual original Copy summary'
+              assert os.environ['IOS_CASES_RESULT']=='success'
+              seen=set();total=0;proof_sha=None;config_sha=None;producer_focus_history=[]
+              product_pins={'27.0': {'products_artifact_id': '14758557772', 'products_artifact_digest': '7a148da64afe3c48e7a00d019ba943113bb7c64a3eafa575c385789e40b30f7c', 'products_artifact_bytes': 144099960, 'products_metadata_sha256': '7fa4d2a7b4938069a79b4707cdd3763466acfb2ea67bb4a56d0c19c3f756a3e3', 'products_archive_sha256': 'aed3d78b21fb8cca361e282ab9232f8077db1925e9ca4d483f9a6b80f8fd6a9b', 'products_build_job_id': '137242584164'}}
+              helper_path='scripts/lib/ios-google-config.mjs'
+              helper_blob=json.loads(pathlib.Path('harness/mobile-current-manifest.json').read_bytes())['expected'][helper_path]
+              for name in ('ui-fixes.json','current-follow-up.json','qa-test-follow-up.json','late-overlay.json','moderation-v8-overlay.json'):
+                  for item in json.loads(pathlib.Path('harness',name).read_bytes())['files']:
+                      if item['path']==helper_path:helper_blob=item['gitBlobSha1']
+              for path in summaries:
+                  data=json.loads(path.read_bytes());key=(data['ios'],data['group'])
+                  assert key in expected and key not in seen
+                  assert data['sourceManifestSha256']==os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256']
+                  proof_path=path.parent/'source-overlays-proof.json';proof=json.loads(proof_path.read_bytes())
+                  digest=sha(proof_path)
+                  if proof_sha is None:proof_sha=digest
+                  assert digest==proof_sha,'Source proofs differ between OS/group jobs'
+                  assert proof['baseSourceManifestSha256']==os.environ['BASE_SOURCE_MANIFEST_SHA256']
+                  assert proof['currentSourceOverlayManifestSha256']==os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256']
+                  assert proof['currentSourceExpectedMapSha256']==os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256']
+                  assert proof['currentSourceExpectedFileCount']==expected_count and proof['currentSourceAddedFileCount']==added_count
+                  assert proof['harnessSha256']==os.environ['IOS_HARNESS_SHA256'] and proof['caseRunnerSha256']==os.environ['PRODUCTS_BUILD_CASE_RUNNER_SHA256']
+                  assert proof['testMethodCount']==13
+                  assert proof['inventoryCaseRunnerSha256']==os.environ['IOS_INVENTORY_CASE_RUNNER_SHA256']
+                  assert proof['focusedTestMethodCount']==4 and proof['focusedTestIdentifiers']==['NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost', 'NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence', 'NativePersonalReminderTests/testPersonalNearFutureReminderDeliversToSystemAndCanBeDeleted', 'NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']
+                  assert proof['focusedGroups']=={'copy-focus': ['NativeExtendedGuestTests/testNativeScriptureCopyingReferenceAndGhost'], 'crud-focus': ['NativePersonalReminderTests/testPersonalLunarSolarCrudInvalidDateCancelAndPersistence'], 'near-future-focus': ['NativePersonalReminderTests/testPersonalNearFutureReminderDeliversToSystemAndCanBeDeleted'], 'vegan-focus': ['NativeSimulatorSnapshotTests/testVegetarianMenuTabsAndRecipeRemainReachable']}
+                  assert proof['testIdentifiers']==[identifier for values in groups.values() for identifier in values]
+                  consumer=json.loads((path.parent/'consumer-source-validation.json').read_bytes())
+                  shared_keys=["schemaVersion","baseSourceManifestSha256","currentSourceOverlayManifestSha256","currentSourceOverlayArchiveSha256","currentSourceOverlayFileCount","currentSourceExpectedMapSha256","currentSourceExpectedFileCount","currentSourceAddedFileCount","currentSourceRuntimeFiles","sourceLayers","nativeFixtureOwnership","nativeFixtureFiles","harnessSha256","testMethodCount","testIdentifiers","runtimeDataManifestSha256","runtimeDataArchiveSha256","runtimeDataFiles","testSupportManifestSha256","testSupportFiles","simulatorReadinessPolicy"]
+                  for field in shared_keys:assert consumer[field]==proof[field],field
+                  assert consumer['producerBuildCaseRunnerSha256']==proof['caseRunnerSha256']
+                  assert consumer['executionCaseRunnerSha256']==proof['caseRunnerSha256']==os.environ['IOS_CASE_RUNNER_SHA256']
+                  assert consumer['inventoryCaseRunnerSha256']==proof['inventoryCaseRunnerSha256']
+                  assert consumer['producerFocusedTestMethodCount']==proof['focusedTestMethodCount']
+                  assert consumer['producerFocusedTestIdentifiers']==proof['focusedTestIdentifiers']
+                  assert consumer['producerFocusedGroups']==proof['focusedGroups']
+                  execution=json.loads((path.parent/'execution-provenance.json').read_bytes())
+                  assert execution['schemaVersion']==1 and execution['executionCaseRunnerSha256']==os.environ['IOS_CASE_RUNNER_SHA256']
+                  assert execution['producerBuildCaseRunnerSha256']==proof['caseRunnerSha256'] and execution['inventoryCaseRunnerSha256']==proof['inventoryCaseRunnerSha256']
+                  assert execution['compiledHarnessSha256']==proof['harnessSha256'] and execution['compiledTestIdentifiers']==proof['testIdentifiers']
+                  assert execution['executionGroup']==data['group'] and execution['executionExpectedIdentifiers']==executed[data['group']] and execution['ios']==data['ios']
+                  assert execution['sourceManifestSha256']==os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256']
+                  assert execution['consumerSourceValidationSha256']==sha(path.parent/'consumer-source-validation.json')
+                  assert execution['producerSourceProofSha256']==digest and execution['producerMetadataSha256']==sha(path.parent/'products-metadata.json')
+                  assert execution['producerRunId']==os.environ['PRODUCTS_SOURCE_RUN_ID'] and execution['producerRunAttempt']==os.environ['PRODUCTS_SOURCE_RUN_ATTEMPT']
+                  assert execution['producerHeadSha']==os.environ['PRODUCTS_SOURCE_HEAD_SHA']
+                  assert execution['consumerRunId']==os.environ['GITHUB_RUN_ID'] and execution['consumerRunAttempt']==os.environ['GITHUB_RUN_ATTEMPT']
+                  metadata=json.loads((path.parent/'products-metadata.json').read_bytes())
+                  assert all(metadata[name]==value for name,value in proof.items())
+                  assert metadata['sourceOverlaysProofSha256']==digest and metadata['ios']==data['ios']
+                  assert metadata['workflowRunId']==os.environ['PRODUCTS_SOURCE_RUN_ID'] and metadata['workflowRunAttempt']==os.environ['PRODUCTS_SOURCE_RUN_ATTEMPT']
+                  assert metadata['harnessRepositoryCommit']==os.environ['PRODUCTS_SOURCE_HEAD_SHA']
+                  pins=product_pins[data['ios']];api=json.loads((path.parent/'prebuilt-source-verification.json').read_bytes());receipt=json.loads((path.parent/'prebuilt-products-verification.json').read_bytes())
+                  assert api['sourceRunId']==receipt['sourceRunId']==os.environ['PRODUCTS_SOURCE_RUN_ID']
+                  assert api['sourceRunAttempt']==receipt['sourceRunAttempt']==os.environ['PRODUCTS_SOURCE_RUN_ATTEMPT']
+                  assert api['sourceHeadSha']==receipt['sourceHeadSha']==os.environ['PRODUCTS_SOURCE_HEAD_SHA']
+                  assert api['sourceWholeRunPassRequired'] is False and api['priorFocusFailuresRemainFailures'] is True
+                  assert {str(job['id']) for job in api['producerFocusJobs']}=={'137243459463','137243459503','137243459539','137243459535'}
+                  assert all(all(key in job for key in ('name','status','conclusion','failedSteps')) for job in api['producerFocusJobs'])
+                  producer_focus_history.append({'ios':data['ios'],'group':data['group'],'sourceRunStatus':api['sourceRunStatus'],'sourceRunConclusion':api['sourceRunConclusion'],'focusJobs':api['producerFocusJobs'],'focusArtifacts':api['producerFocusArtifacts']})
+                  assert len(api['sourceBuildJobs'])==1 and all(job['status']=='completed' and job['conclusion']=='success' for job in api['sourceBuildJobs'])
+                  assert {str(job['id']) for job in api['sourceBuildJobs']}=={'137242584164'}
+                  assert str(api['artifact']['id'])==receipt['artifactId']==pins['products_artifact_id']
+                  assert api['artifact']['digest']=='sha256:'+pins['products_artifact_digest'] and api['artifact']['expired'] is False
+                  assert api['artifact']['size_in_bytes']==receipt['artifactBytes']==pins['products_artifact_bytes']
+                  assert receipt['artifactDigest']==pins['products_artifact_digest'] and receipt['buildJobId']==pins['products_build_job_id']
+                  assert receipt['metadataSha256']==sha(path.parent/'products-metadata.json')==pins['products_metadata_sha256']
+                  assert receipt['archiveSha256']==metadata['archiveSha256']==pins['products_archive_sha256']
+                  assert receipt['sourceOverlaysProofSha256']==digest==os.environ['PRODUCTS_SOURCE_PROOF_SHA256']
+                  assert receipt['generatedIosInfoProofSha256']==os.environ['PRODUCTS_GENERATED_INFO_PROOF_SHA256']
+                  assert receipt['currentTestRunId']==api['currentTestRunId']==os.environ['GITHUB_RUN_ID']
+                  assert receipt['currentTestRunAttempt']==api['currentTestRunAttempt']==os.environ['GITHUB_RUN_ATTEMPT']
+                  assert receipt['archiveMetadataEntriesRejected'] is True
+                  assert receipt['extractionPolicy']=='Pinned Products subtree only; no root metadata exception; COPYFILE_DISABLE=1'
+                  config_path=path.parent/'ios-info-build-config.json';config=json.loads(config_path.read_bytes())
+                  digest_config=sha(config_path)
+                  if config_sha is None:config_sha=digest_config
+                  assert digest_config==config_sha==metadata['generatedIosInfoProofSha256']
+                  assert config==metadata['generatedIosInfo'] and config['schemaVersion']==1 and config['transform']=='configureIosGoogle'
+                  assert config['path']=='ios/App/App/Info.plist' and config['publicQaClientId']==os.environ['IOS_QA_GOOGLE_CLIENT_ID']
+                  info_entry=next(item for item in proof['currentSourceRuntimeFiles'] if item['path']==config['path'])
+                  assert config['sourceSha256']==info_entry['sha256']==sha(path.parent/'ios-info.original.plist')
+                  assert config['expectedSha256']==config['actualSha256']==sha(path.parent/'ios-info.expected.plist')
+                  assert config['sourceHelperPath']==helper_path and config['sourceHelperGitBlobSha1']==helper_blob
+                  assert config['verifiedExactBytes'] is True
+                  expected_info=plistlib.loads((path.parent/'ios-info.expected.plist').read_bytes())
+                  assert config['productIdentity']=={'bundleId':'vn.quangtu.tutam','bundleName':'App','displayName':expected_info['CFBundleDisplayName'],'urlTypes':expected_info['CFBundleURLTypes']}
+                  assert proof['simulatorReadinessPolicy']=={'command':'xcrun simctl listapps','timeoutSeconds':120,'stage':'pre-test infrastructure only','nativeAssertionsChanged':False,'perCaseWatchdogSeconds':750}
+                  readiness=json.loads((path.parent/'simulator-readiness.json').read_bytes())
+                  assert readiness['ready'] is True and readiness['ios']==data['ios'] and readiness['nativeAssertionsChanged'] is False
+                  assert readiness['perCaseWatchdogSeconds']==750
+                  recovery=readiness['recovery'];device=readiness['device']
+                  assert recovery['device']==device and recovery['trigger']=='selected-listapps-timeout-only' and recovery['deadlineSeconds']==120
+                  assert recovery['stage']=='pre-test infrastructure only' and recovery['actualNativeTestsBeforeRecovery']==0
+                  assert execution['readinessRecoveryPolicy']=={'trigger':'selected-listapps-timeout-only','deadlineSeconds':120,'maxAttempts':1,'sameDevice':True,'beforeNativeInstall':True,'createsOrErasesDevice':False}
+                  initial=[row for row in readiness['records'] if row['output']=='simulator-app-services-ready.txt']
+                  assert len(initial)==1 and initial[0]['command']==['xcrun','simctl','listapps',device] and initial[0]['timeoutSeconds']==120
+                  if recovery['attempted']:
+                      assert initial[0]['passed'] is False and initial[0]['timedOut'] is True
+                      assert recovery['status']=='recovered' and 0<=recovery['elapsedSeconds']<=120
+                      expected_commands=[['xcrun','simctl','shutdown',device],['xcrun','simctl','boot',device],['xcrun','simctl','bootstatus',device,'-b'],['xcrun','simctl','listapps',device]]
+                      assert [row['command'] for row in recovery['records']]==expected_commands
+                      assert all(row['passed'] is True and row['timedOut'] is False and 0<row['timeoutSeconds']<=120 for row in recovery['records'])
+                      assert all((path.parent/row['output']).is_file() for row in recovery['records'])
+                  else:
+                      assert initial[0]['passed'] is True and recovery['status']=='not-needed' and recovery['records']==[]
+                  assert data['workflowRunId']==os.environ['GITHUB_RUN_ID'] and data['workflowRunAttempt']==os.environ['GITHUB_RUN_ATTEMPT']
+                  assert data['completeAndPassed'] is True
+                  records=data['records'];identifiers=[record['identifier'] for record in records]
+                  assert identifiers==executed[data['group']] and all(module['passed'](record) for record in records)
+                  assert all(record['freshInstallCompleted'] is True and record['xcodeExitCode']==0 for record in records)
+                  count=len(identifiers)
+                  assert data['passedTests']==data['totalTestCount']==data['expectedTests']==count
+                  assert data['failedTests']==data['skippedTests']==0
+                  seen.add(key);total+=count
+              assert seen==expected and total==1
+              result.update({'status':'PASSED','passedTests':1,'failedTests':0,'skippedTests':0,
+               'currentSourceOverlayManifestSha256':os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256'],
+               'currentSourceExpectedMapSha256':os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256'],
+               'harnessSha256':os.environ['IOS_HARNESS_SHA256'],'caseRunnerSha256':os.environ['IOS_CASE_RUNNER_SHA256'],
+               'sourceOverlaysProofSha256':proof_sha,'generatedIosInfoProofSha256':config_sha,
+               'producerRunId':os.environ['PRODUCTS_SOURCE_RUN_ID'],'producerRunAttempt':os.environ['PRODUCTS_SOURCE_RUN_ATTEMPT'],
+               'producerCommit':os.environ['PRODUCTS_SOURCE_HEAD_SHA'],'producerBuildCaseRunnerSha256':os.environ['PRODUCTS_BUILD_CASE_RUNNER_SHA256'],
+               'executionCaseRunnerSha256':os.environ['IOS_CASE_RUNNER_SHA256'],'producerFocusHistory':producer_focus_history,'priorFocusFailuresRemainFailures':True,
+               'scope':'This new one-case gate does not rewrite producer outcomes; V8 immutable Products only; pre-test recovery is not a Copy product fix.',
+               'currentTestRunId':os.environ['GITHUB_RUN_ID'],
+               'currentTestRunAttempt':os.environ['GITHUB_RUN_ATTEMPT']})
+          except Exception as error:
+              result['failureType']=type(error).__name__;result['failure']=str(error)[:2000]
+              raise
+          finally:
+              (root/'full-ios-gate.json').write_text(json.dumps(result,indent=2)+'\n')
+          print('Verified one actual original Copy execution,0failures,0skips')
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: ios-v8-copy-case-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ios-native-evidence/full-ios-gate.json
+          if-no-files-found: warn
