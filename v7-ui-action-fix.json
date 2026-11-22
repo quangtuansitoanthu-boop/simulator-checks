@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "readyForPublication": true,
+  "scope": "Cumulative ten E2E locator amendments in two files directly after immutable V7 producer; not stacked on viewfix; no application/runtime change",
+  "producerManifest": "moderation-v7-overlay.json",
+  "producerManifestSha256": "8d2ab07f5287323dd52a93e69259962c94e7793dd05d8f65956e5dd6df58d9ab",
+  "producerArchiveSha256": "712f777420904fd39d498d56bf357d6c603c1d6d8415562758e1cdfad345078a",
+  "producerExpectedMapSha256": "a29c9ee3088385c054806f46cc3eec85428173c10cd0bcf400845ecb78f9da99",
+  "producerSourceFiles": 3292,
+  "producerChangedRuntimeFiles": 89,
+  "archive": "v7-ui-action-fix.tar.gz",
+  "archiveSha256": "0bc6670608a36a5477adc4dd561884fadcce243f64d5ad3b2c6c5362ac6f0eca",
+  "archiveBytes": 9553,
+  "fileCount": 2,
+  "files": [
+    {
+      "path": "tests/e2e/admin-community-moderation.spec.ts",
+      "operation": "modify",
+      "classification": "test",
+      "runtime": false,
+      "baseGitBlobSha1": "cab99c828d34ddb7d8243c61bf64dc0b03c1215c",
+      "beforeSha256": "cf775cc76f830662cef9e8c1a7e295792820ffbf88d130653bc0f67f92dee608",
+      "beforeBytes": 21421,
+      "gitBlobSha1": "cef792b1a7e96d8bf135470418baec5176bc9747",
+      "sha256": "9b3d407757f7b2ba28ec55b77dd88681641e6b38b952f66e45e91d0ef18b7ec4",
+      "bytes": 21637,
+      "locatorAmendments": [
+        {
+          "before": "name: 'Xem nội dung & ngữ cảnh', exact: true",
+          "after": "name: /^(?:▼\\s*)?Xem nội dung & ngữ cảnh$/u, exact: true",
+          "count": 5
+        },
+        {
+          "before": "await moderation.getByRole('button', { name: 'Ẩn nội dung vi phạm', exact: true }).click();",
+          "after": "await moderation.getByRole('article', { name: 'Nội dung & ngữ cảnh', exact: true }).getByRole('button', { name: 'Ẩn nội dung vi phạm', exact: true }).click();",
+          "count": 1
+        },
+        {
+          "before": "await moderation.getByRole('button', { name: 'Đánh dấu đã xử lý', exact: true }).click();",
+          "after": "await moderation.getByRole('article', { name: 'Nội dung & ngữ cảnh', exact: true }).getByRole('button', { name: 'Đánh dấu đã xử lý', exact: true }).click();",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "path": "tests/e2e/mindful-moderation-48h.spec.ts",
+      "operation": "modify",
+      "classification": "test",
+      "runtime": false,
+      "baseGitBlobSha1": "7d85a932bd45c2f5ae5002fc34ce29ea49b5052a",
+      "beforeSha256": "4d3be0034779954d8483d22b49d12546cdb3ce62af510dc6dbc60aee77250df6",
+      "beforeBytes": 20226,
+      "gitBlobSha1": "8d2008ca3d79d3289d9ad40112d884bb3721975a",
+      "sha256": "2a319e2bedec3b73e4ca89a6ded6947c17b06581132cb1806d23c8246cef6308",
+      "bytes": 20327,
+      "locatorAmendments": [
+        {
+          "before": "name: 'Xem bài', exact: true",
+          "after": "name: /^(?:▼\\s*)?Xem bài$/u, exact: true",
+          "count": 2
+        },
+        {
+          "before": "const remove = moderation.getByRole('button', { name: 'Xóa bài đã đăng', exact: true });",
+          "after": "const remove = moderation.getByRole('article', { name: 'Nội dung bài chia sẻ', exact: true }).getByRole('button', { name: 'Xóa bài đã đăng', exact: true });",
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "executionExpectedMapSha256": "857cebdbb8f2f06f847334411fe3d40ba7bd7bd664edcf10bb06be18a847aaa6",
+  "executionSourceFiles": 3292,
+  "unchangedProducerFiles": 3290,
+  "unchangedRuntimeFiles": 89,
+  "changedRuntimeFiles": 0,
+  "approvedLocatorChanges": 10,
+  "nativeProductRebuildRequired": false,
+  "sourceMapPhase": "after-two-test-amendments-before-unchanged-approved-browser-fixture-staging",
+  "assertionsCountersRoutesLabelsTimeoutsUnchangedOutsideTenLocators": true,
+  "skipRetryFailWaivers": 0
+}
