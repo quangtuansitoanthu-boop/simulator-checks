@@ -1,0 +1,330 @@
+# V4 DRAFT: final source pinned; root owns publication. No production deployment is authorized.
+name: Current V4 Android QA build and complete JVM suite
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/moderation-android-v4-build.yml']
+permissions:
+  contents: read
+concurrency:
+  group: moderation-android-build-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  android-build:
+    name: Android QA APKs and all 25 JVM tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+      DO_NOT_TRACK: '1'
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      TUTAM_E2E_LOCAL_ONLY: '1'
+      MODERATION_SOURCE_OVERLAY_SHA256: b2a37e40ca364ad08991c9972b62b2bd64244c0994088d81fdc614997f85f53a
+      MODERATION_APPLY_HELPER_SHA256: 2ffff8198970f9dd75a651069f8b085fc037591a763b39066ba36dc8134ef2be
+      MODERATION_EXPECTED_MAP_SHA256: 056c3d16294ae2fbc7ed1af488749f19da7566da323f0cd3e503004649ec58ab
+      MODERATION_SOURCE_FILE_COUNT: 3292
+      TUTAM_RUNTIME_MANIFEST_SHA256: cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7
+      TUTAM_BUNDLE_SYNCED: '1'
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - name: Check out immutable QA harness
+        uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Check out unchanged application baseline
+        uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Require final pins and apply the complete reviewed source chain
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          h=pathlib.Path('../harness')
+          for key in ('MODERATION_SOURCE_OVERLAY_SHA256','MODERATION_APPLY_HELPER_SHA256','MODERATION_EXPECTED_MAP_SHA256'):
+              assert re.fullmatch('[0-9a-f]{64}',os.environ[key]),'NOT PUBLISHABLE: final pin required for '+key
+          assert os.environ['MODERATION_SOURCE_FILE_COUNT'].isdigit(),'NOT PUBLISHABLE: final source count required'
+          pins={'mobile-current-manifest.json':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7',
+            'ui-fixes.json':'b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295',
+            'current-follow-up.json':'9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137',
+            'qa-test-follow-up.json':'eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa',
+            'late-overlay.json':'934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd',
+            'moderation-brand-overlay.json':os.environ['MODERATION_SOURCE_OVERLAY_SHA256'],
+            'apply-moderation-brand.py':os.environ['MODERATION_APPLY_HELPER_SHA256']}
+          for name,wanted in pins.items():
+              assert hashlib.sha256((h/name).read_bytes()).hexdigest()==wanted,name
+          m=json.loads((h/'moderation-brand-overlay.json').read_bytes())
+          assert m['phase']=='final' and m['readyForPublication'] is True and not m['sensitiveFindings']
+          assert m['currentExpectedMapSha256']==os.environ['MODERATION_EXPECTED_MAP_SHA256']
+          assert m['currentExpectedFileCount']==int(os.environ['MODERATION_SOURCE_FILE_COUNT'])
+          assert m['baseManifestSha256']==pins['mobile-current-manifest.json']
+          for name,wanted in m['prerequisiteManifests'].items(): assert pins[name]==wanted,name
+          PY
+          python3 ../harness/apply-current.py .
+          python3 ../harness/apply-ui-fixes.py .
+          python3 ../harness/apply-current-follow-up.py .
+          python3 ../harness/apply-qa-test-follow-up.py .
+          python3 ../harness/apply-late-overlay.py .
+          python3 ../harness/apply-moderation-brand.py .
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          p=pathlib.Path('qa-evidence/moderation-brand-source-verification.json')
+          proof=json.loads(p.read_bytes())
+          assert proof['status']=='EXACT_MODERATION_BRAND_SOURCE_VERIFIED' and proof['phase']=='final'
+          assert proof['manifestSha256']==os.environ['MODERATION_SOURCE_OVERLAY_SHA256']
+          assert proof['currentExpectedFileCount']==int(os.environ['MODERATION_SOURCE_FILE_COUNT'])
+          assert proof['currentExpectedMapSha256']==os.environ['MODERATION_EXPECTED_MAP_SHA256']
+          assert proof['productionWrites'] is False
+          raw=pathlib.Path('qa-evidence/moderation-brand-expected.json').read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==proof['currentExpectedMapSha256']
+          expected=json.loads(raw);assert len(expected)==proof['currentExpectedFileCount']
+          root=pathlib.Path.cwd().resolve()
+          for name,wanted in expected.items():
+              target=root/name
+              assert target.resolve().is_relative_to(root) and not target.is_symlink(),name
+              data=target.read_bytes()
+              assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==wanted,name
+          print(json.dumps({'sourceStatus':proof['status'],'sourceFileCount':len(expected),'currentExpectedMapSha256':proof['currentExpectedMapSha256']}))
+          PY
+      - name: Verify and apply the seven exact runtime JSON imports
+        run: |
+          set -euo pipefail
+          echo "$TUTAM_RUNTIME_MANIFEST_SHA256  ../harness/runtime-data-manifest.json" | sha256sum -c -
+          python3 ../harness/apply-runtime-data.py .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Isolate known production hosts before running application tools
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,ipaddress,json,os,pathlib,re,socket,subprocess
+          proof=pathlib.Path('qa-evidence');proof.mkdir(exist_ok=True)
+          assert not any(os.environ.get(k) for k in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy')),'Proxy could bypass host isolation'
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          owner=pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()
+          hosts.update(re.findall(r'https://([A-Za-z0-9.-]+)',owner))
+          assert all(re.fullmatch('[A-Za-z0-9.-]+',h) for h in hosts)
+          original=pathlib.Path('/etc/hosts').read_bytes()
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'moderation-original-hosts'
+          assert not backup.exists(),'Unexpected existing isolation backup'
+          backup.write_bytes(original)
+          lines=[]
+          for line in original.decode().splitlines():
+              body,sep,comment=line.partition('#');parts=body.split()
+              if len(parts)>1:
+                  parts=[parts[0]]+[p for p in parts[1:] if p not in hosts]
+                  if len(parts)<2: continue
+                  body=' '.join(parts)
+              lines.append(body+(' #'+comment if sep else ''))
+          for host in sorted(hosts): lines.extend(('127.0.0.1 '+host,'::1 '+host))
+          subprocess.run(['sudo','tee','/etc/hosts'],input=('\n'.join(lines)+'\n').encode(),stdout=subprocess.DEVNULL,check=True)
+          resolved={}
+          for host in sorted(hosts):
+              addresses=sorted({row[4][0] for row in socket.getaddrinfo(host,443)})
+              assert addresses and all(ipaddress.ip_address(a).is_loopback for a in addresses),host
+              resolved[host]=addresses
+          (proof/'network-isolation.json').write_text(json.dumps({'knownProductionHosts':resolved,'originalHostsSha256':hashlib.sha256(original).hexdigest(),'proxyBypass':False,'productionApiCallsAllowed':False},indent=2)+'\n')
+          PY
+      - name: Install only locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build current bundled Android assets without refreshing shared content
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,subprocess,sys
+          evidence=pathlib.Path('qa-evidence');evidence.mkdir(exist_ok=True)
+          groups=evidence/'owned-process-groups.json'
+          child=subprocess.Popen(['npm','run','build:mobile','--','--platform','android'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
+          pids=json.loads(groups.read_text()) if groups.exists() else []
+          pids.append(child.pid);groups.write_text(json.dumps(pids))
+          with (evidence/'android-mobile-build.log').open('wb') as output:
+              for line in iter(child.stdout.readline,b''):
+                  output.write(line);output.flush();sys.stdout.buffer.write(line);sys.stdout.buffer.flush()
+          code=child.wait();(evidence/'android-mobile-build-exit-code.txt').write_text(str(code)+'\n')
+          sys.exit(code)
+          PY
+      - name: Build isolated QA app instrumentation package and run all JVM cases
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,subprocess,sys
+          evidence=pathlib.Path('qa-evidence')
+          groups=evidence/'owned-process-groups.json'
+          command=['bash','android/gradlew','-p','android','--no-daemon','-Dorg.gradle.jvmargs=-Xmx4096m','-PqaApplicationIdSuffix=.securityqa',':app:testDebugUnitTest',':app:assembleDebug',':app:assembleDebugAndroidTest']
+          child=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
+          pids=json.loads(groups.read_text()) if groups.exists() else []
+          pids.append(child.pid);groups.write_text(json.dumps(pids))
+          with (evidence/'android-gradle.log').open('wb') as output:
+              for line in iter(child.stdout.readline,b''):
+                  output.write(line);output.flush();sys.stdout.buffer.write(line);sys.stdout.buffer.flush()
+          code=child.wait();(evidence/'android-gradle-exit-code.txt').write_text(str(code)+'\n')
+          sys.exit(code)
+          PY
+      - name: Require every JVM case with zero failures errors or skips
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 ../harness/android-report.py android/app/build/test-results/testDebugUnitTest 25 build/android-jvm-summary.json
+          test "$(cat qa-evidence/android-mobile-build-exit-code.txt)" = 0
+          test "$(cat qa-evidence/android-gradle-exit-code.txt)" = 0
+      - name: Record exact current APK hashes sizes source fixtures and proof
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,shutil,subprocess
+          sha=lambda data:hashlib.sha256(data).hexdigest()
+          evidence=pathlib.Path('qa-evidence')
+          proof_path=evidence/'moderation-brand-source-verification.json'
+          proof_bytes=proof_path.read_bytes();proof=json.loads(proof_bytes)
+          manifest_bytes=pathlib.Path('../harness/moderation-brand-overlay.json').read_bytes()
+          manifest=json.loads(manifest_bytes)
+          overlay_sha=os.environ['MODERATION_SOURCE_OVERLAY_SHA256']
+          assert sha(manifest_bytes)==overlay_sha==proof['manifestSha256']
+          assert proof['status']=='EXACT_MODERATION_BRAND_SOURCE_VERIFIED' and proof['phase']=='final'
+          assert proof['productionWrites'] is False
+          assert proof['currentExpectedMapSha256']==os.environ['MODERATION_EXPECTED_MAP_SHA256']
+          assert proof['currentExpectedFileCount']==int(os.environ['MODERATION_SOURCE_FILE_COUNT'])
+          map_path=evidence/'moderation-brand-expected.json'
+          assert sha(map_path.read_bytes())==proof['currentExpectedMapSha256']
+          jvm=json.loads(pathlib.Path('build/android-jvm-summary.json').read_bytes())
+          assert jvm['tests']==jvm['expected']==25 and jvm['failures']==jvm['errors']==jvm['skipped']==0
+          assert (evidence/'android-mobile-build-exit-code.txt').read_text().strip()=='0'
+          assert (evidence/'android-gradle-exit-code.txt').read_text().strip()=='0'
+          runtime={}
+          for item in proof['files']:
+              if item['runtime']:
+                  actual=sha(pathlib.Path(item['path']).read_bytes())
+                  assert actual==item['sha256'],item['path']
+                  runtime[item['path']]=actual
+          native_paths=[
+            'android/app/src/androidTest/java/vn/quangtu/tutam/audio/DharmaAudioWidgetInitialLayoutTest.java',
+            'android/app/src/androidTest/java/vn/quangtu/tutam/widgets/CalendarWidgetRenderingTest.java',
+            'ios/App/AppUITests/NativeGuestSmokeTests.swift']
+          indexed={item['path']:item for item in proof['files']}
+          native={}
+          for name in native_paths:
+              actual=sha(pathlib.Path(name).read_bytes())
+              assert actual==indexed[name]['sha256'],name
+              native[name]=actual
+          packages=[pathlib.Path('android/app/build/outputs/apk/debug/app-debug.apk'),
+            pathlib.Path('android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk')]
+          sdk=pathlib.Path(os.environ.get('ANDROID_HOME') or os.environ['ANDROID_SDK_ROOT'])
+          aapt_candidates=sorted((sdk/'build-tools').glob('*/aapt'))
+          assert aapt_candidates,'Installed Android SDK aapt not found'
+          package_ids={}
+          for apk,expected in zip(packages,('vn.quangtu.tutam.securityqa','vn.quangtu.tutam.securityqa.test')):
+              assert apk.is_file() and apk.stat().st_size>0,apk
+              badging=subprocess.check_output([str(aapt_candidates[-1]),'dump','badging',str(apk)],text=True)
+              match=re.search(r"^package: name='([^']+)'",badging,re.M)
+              assert match and match.group(1)==expected,'QA package isolation mismatch'
+              package_ids[apk.name]=match.group(1)
+          ui=json.loads((evidence/'ui-fixes-verification.json').read_bytes())
+          current=json.loads((evidence/'current-follow-up-verification.json').read_bytes())
+          result={'manifestSha256':overlay_sha,'sourceManifestSha256':overlay_sha,
+            'baseManifestSha256':'043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7',
+            'currentSourceOverlayManifestSha256':overlay_sha,
+            'currentExpectedMapSha256':proof['currentExpectedMapSha256'],
+            'sourceFileCount':proof['currentExpectedFileCount'],
+            'sourceVerificationFile':'moderation-brand-source-verification.json',
+            'sourceVerificationSha256':sha(proof_bytes),
+            'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],
+            'sourceHeadSha':os.environ['GITHUB_SHA'],'package':'vn.quangtu.tutam.securityqa',
+            'files':{apk.name:sha(apk.read_bytes()) for apk in packages},
+            'packageSizes':{apk.name:apk.stat().st_size for apk in packages},
+            'packageIds':package_ids,'androidHarnessSha256':overlay_sha,
+            'androidHarnessSource':'moderation-brand-overlay.json',
+            'nativeFixtureHashes':native,'runtimeFileHashes':runtime,
+            'uiFixes':ui,'currentFollowUp':current,'jvmTestCount':25,'sourceProof':proof}
+          # build:mobile recreates build/. Copy immutable proof only after it finishes.
+          shutil.copyfile(proof_path,'build/moderation-brand-source-verification.json')
+          shutil.copyfile(map_path,'build/moderation-brand-expected.json')
+          pathlib.Path('build/android-qa-packages.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps({'package':result['package'],'files':result['files'],'packageSizes':result['packageSizes'],
+            'sourceManifestSha256':overlay_sha,'sourceFileCount':result['sourceFileCount'],'jvmTestCount':25}))
+          PY
+      - name: Stop only owned process groups before restoring hosts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,signal,subprocess,time
+          evidence=pathlib.Path('qa-evidence');evidence.mkdir(exist_ok=True)
+          groups=evidence/'owned-process-groups.json'
+          stopped=[]
+          for pgid in (json.loads(groups.read_text()) if groups.exists() else []):
+              assert isinstance(pgid,int) and pgid>1 and pgid!=os.getpgrp()
+              try: os.killpg(pgid,signal.SIGTERM)
+              except ProcessLookupError: continue
+              deadline=time.monotonic()+10
+              while time.monotonic()<deadline:
+                  try: os.killpg(pgid,0)
+                  except ProcessLookupError: break
+                  time.sleep(.2)
+              else:
+                  try: os.killpg(pgid,signal.SIGKILL)
+                  except ProcessLookupError: pass
+              stopped.append(pgid)
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'moderation-original-hosts'
+          result={'ownedProcessGroupsStopped':stopped,'hostsRestored':None}
+          if backup.exists():
+              original=backup.read_bytes()
+              subprocess.run(['sudo','tee','/etc/hosts'],input=original,stdout=subprocess.DEVNULL,check=True)
+              assert pathlib.Path('/etc/hosts').read_bytes()==original
+              result.update(hostsRestored=True,originalHostsSha256=hashlib.sha256(original).hexdigest())
+          (evidence/'network-restoration.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result))
+          PY
+      - name: Upload the single app APK test APK and exact build evidence
+        id: packages
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-qa-packages-${{ github.run_id }}
+          path: |
+            app/android/app/build/outputs/apk/debug/app-debug.apk
+            app/android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            app/android/app/build/test-results/testDebugUnitTest/*.xml
+            app/build/android-jvm-summary.json
+            app/build/android-qa-packages.json
+            app/build/moderation-brand-source-verification.json
+            app/build/moderation-brand-expected.json
+            app/qa-evidence/
+          retention-days: 7
+          if-no-files-found: error
+      - name: Record upload service artifact ZIP identity without duplicating APKs
+        if: always() && steps.packages.outcome == 'success'
+        env:
+          ARTIFACT_ID: ${{ steps.packages.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.packages.outputs.artifact-digest }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,re
+          digest=os.environ['ARTIFACT_DIGEST']
+          assert re.fullmatch('[0-9a-fA-F]{64}',digest),'Missing artifact ZIP SHA256'
+          result={'artifactId':os.environ['ARTIFACT_ID'],'artifactName':'android-qa-packages-'+os.environ['GITHUB_RUN_ID'],
+            'artifactSha256':digest.lower(),'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],
+            'sourceHeadSha':os.environ['GITHUB_SHA'],'sourceManifestSha256':os.environ['MODERATION_SOURCE_OVERLAY_SHA256']}
+          pathlib.Path('qa-evidence/android-artifact-upload.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result))
+          PY
+      - name: Upload immutable artifact identity receipt
+        if: always() && steps.packages.outcome == 'success'
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-qa-package-receipt-${{ github.run_id }}
+          path: app/qa-evidence/android-artifact-upload.json
+          retention-days: 7
+          if-no-files-found: error
+
