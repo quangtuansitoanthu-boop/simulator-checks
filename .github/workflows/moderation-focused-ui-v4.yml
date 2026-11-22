@@ -1,0 +1,356 @@
+# Source frozen for isolated GitHub QA; no production deployment.
+name: Reviewed V4 moderation UI Chromium and macOS WebKit
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/full-mobile-audit-20261121']
+    paths: ['.github/workflows/moderation-focused-ui-v4.yml']
+permissions:
+  contents: read
+concurrency:
+  group: moderation-focused-ui-v4-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  moderation:
+    name: Moderation V4 UI ${{ matrix.engine }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - engine: chromium
+            runner: ubuntu-24.04
+            browser: chromium
+          - engine: webkit
+            runner: macos-15
+            browser: webkit
+    env:
+      PUBLISH_STATE: READY_FOR_MODERATION_UI_V4_QA
+      CI: 'true'
+      SVELTEKIT_BASE_URL: http://localhost:8787
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      TUTAM_E2E_LOCAL_ONLY: '1'
+      TUTAM_E2E_PREBUILT: '1'
+      TUTAM_E2E_DEV_API: '1'
+      TUTAM_E2E_RUNTIME_PORT: '8787'
+      TUTAM_E2E_PROXY_PORT: '8799'
+      WRANGLER_SEND_METRICS: 'false'
+      DO_NOT_TRACK: '1'
+      TUTAM_UI_ENGINE: ${{ matrix.engine }}
+      TUTAM_UI_BROWSER: ${{ matrix.browser }}
+      WRANGLER_LOG_PATH: ${{ github.workspace }}/app/build/github-moderation-ui-evidence/wrangler-user.log
+      BASE_SOURCE_MANIFEST_SHA256: 043ca01be793d63f7224e8fbb72871c422b683cc879ea3f0a92087e2acbacfe7
+      UI_FIXES_MANIFEST_SHA256: b09de0096afa6eb377b1a24725682d18a7f30f37037c830fcf943dc2aa3de295
+      CURRENT_FOLLOW_UP_MANIFEST_SHA256: 9851a327a9f64343a362cc08cccf7b0f251f7829a57b6d65cd30a29ee2b1c137
+      QA_TEST_FOLLOW_UP_MANIFEST_SHA256: eb6dabe803ec93016364795f807a47fe91641286e2d81e77ce8afafb9431a3aa
+      LATE_OVERLAY_MANIFEST_SHA256: 934ffb0237675171025c5c9e48323043f68573e4e7cd706f9fc658d80d925ccd
+      CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256: b2a37e40ca364ad08991c9972b62b2bd64244c0994088d81fdc614997f85f53a
+      CURRENT_SOURCE_OVERLAY_HELPER_SHA256: 2ffff8198970f9dd75a651069f8b085fc037591a763b39066ba36dc8134ef2be
+      CURRENT_SOURCE_EXPECTED_MAP_SHA256: 056c3d16294ae2fbc7ed1af488749f19da7566da323f0cd3e503004649ec58ab
+      CURRENT_SOURCE_EXPECTED_FILE_COUNT: 3292
+      CURRENT_SOURCE_ADDED_FILE_COUNT: 17
+      CURRENT_SOURCE_OVERLAY_FILE_COUNT: 122
+      CURRENT_SOURCE_RUNTIME_FILE_COUNT: 85
+      CURRENT_SOURCE_TEST_FILE_COUNT: 37
+      CURRENT_SOURCE_SNAPSHOT_REVISION: v4-notification-observations-version33
+      TUTAM_RUNTIME_MANIFEST_SHA256: cd55b379c0dc3468cc516a0c45034300e49cac2c1cd769e17eb7f98d94ccafd7
+      RUNTIME_DATA_HELPER_SHA256: e9b71b2d90f559ddfbcb217315cc3849b0b6689af9c09159fa963321b42b4024
+      TUTAM_TEST_SUPPORT_MANIFEST_SHA256: 4075d004b03ea59c44337cb9296713fc22a6e21bfe9d2c2ebd90dd17d97a8e9c
+      TEST_SUPPORT_HELPER_SHA256: fcbe767b43d3a5d9a1e85d37adac681b871618d48bde280da3e4e6c7f5b0d023
+      WEBKIT_CONFIG_SHA256: 126f16e5b2c6443d96b9649cacdd514778fd98576d36f284d2c075b93a87e1ed
+      WEBKIT_FIXTURE_SHA256: 516c34cc0dcdf51bd07dfe72d9dcbf34090bd038f3b178ec16d2fb35bf092b1b
+      WEBKIT_STAGE_SHA256: 7f0b1d1f538d640d4fe26893be60cd886bbf2fa01aeef7b989f80feff52ee6ef
+    defaults:
+      run:
+        working-directory: app
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with: {path: harness, persist-credentials: false}
+      - uses: actions/checkout@v6
+        with:
+          repository: quangtuansitoanthu-boop/r-8f31b6c2
+          ref: 166d0aeb43341da6f907e096f80a003b49d3be89
+          path: app
+          persist-credentials: false
+      - name: Require final immutable source pins and apply every reviewed source layer
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          assert os.environ['GITHUB_ACTIONS']=='true' and os.environ['RUNNER_ENVIRONMENT']=='github-hosted'
+          assert os.environ['PUBLISH_STATE']=='READY_FOR_MODERATION_UI_V4_QA','NOT PUBLISHABLE: root must pin the final reviewed source'
+          h=pathlib.Path('../harness')
+          pins={'BASE_SOURCE_MANIFEST_SHA256':'mobile-current-manifest.json','UI_FIXES_MANIFEST_SHA256':'ui-fixes.json','CURRENT_FOLLOW_UP_MANIFEST_SHA256':'current-follow-up.json','QA_TEST_FOLLOW_UP_MANIFEST_SHA256':'qa-test-follow-up.json','LATE_OVERLAY_MANIFEST_SHA256':'late-overlay.json','CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256':'moderation-brand-overlay.json','CURRENT_SOURCE_OVERLAY_HELPER_SHA256':'apply-moderation-brand.py','TUTAM_RUNTIME_MANIFEST_SHA256':'runtime-data-manifest.json','RUNTIME_DATA_HELPER_SHA256':'apply-runtime-data.py','TUTAM_TEST_SUPPORT_MANIFEST_SHA256':'test-support-manifest.json','TEST_SUPPORT_HELPER_SHA256':'apply-test-support.py','WEBKIT_CONFIG_SHA256':'ui-webkit.config.ts','WEBKIT_FIXTURE_SHA256':'webkit-persistent-fixtures.ts','WEBKIT_STAGE_SHA256':'stage-webkit-persistent.py'}
+          for variable,name in pins.items():
+              expected=os.environ[variable]
+              assert re.fullmatch(r'[0-9a-f]{64}',expected),'Unfilled publication pin: '+variable
+              assert hashlib.sha256((h/name).read_bytes()).hexdigest()==expected,name
+          assert re.fullmatch(r'[0-9a-f]{64}',os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256'])
+          for key in ('CURRENT_SOURCE_EXPECTED_FILE_COUNT','CURRENT_SOURCE_ADDED_FILE_COUNT','CURRENT_SOURCE_OVERLAY_FILE_COUNT'):
+              assert re.fullmatch(r'[1-9][0-9]*',os.environ[key]),'Unfilled count: '+key
+          source=json.loads((h/'moderation-brand-overlay.json').read_bytes())
+          base=json.loads((h/'mobile-current-manifest.json').read_bytes())
+          assert source['phase']=='final' and source['readyForPublication'] is True
+          assert source['snapshotRevision']==os.environ['CURRENT_SOURCE_SNAPSHOT_REVISION']
+          assert source['runtimeFileCount']==int(os.environ['CURRENT_SOURCE_RUNTIME_FILE_COUNT'])
+          assert source['fileCount']-source['runtimeFileCount']==int(os.environ['CURRENT_SOURCE_TEST_FILE_COUNT'])
+          assert source['currentExpectedFileCount']==int(os.environ['CURRENT_SOURCE_EXPECTED_FILE_COUNT'])==len(base['expected'])+int(os.environ['CURRENT_SOURCE_ADDED_FILE_COUNT'])
+          assert source['addedFileCount']==int(os.environ['CURRENT_SOURCE_ADDED_FILE_COUNT'])
+          assert source['fileCount']==int(os.environ['CURRENT_SOURCE_OVERLAY_FILE_COUNT'])
+          assert source['currentExpectedMapSha256']==os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256']
+          assert subprocess.check_output(['git','--no-optional-locks','-C',str(h),'rev-parse','HEAD'],text=True).strip()==os.environ['GITHUB_SHA']
+          PY
+          python3 ../harness/apply-current.py .
+          python3 ../harness/apply-ui-fixes.py .
+          python3 ../harness/apply-current-follow-up.py .
+          python3 ../harness/apply-qa-test-follow-up.py .
+          python3 ../harness/apply-late-overlay.py .
+          python3 ../harness/apply-moderation-brand.py .
+          python3 ../harness/apply-runtime-data.py .
+          python3 ../harness/apply-test-support.py .
+      - name: Verify the complete final source map plus runtime and test support
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          h=pathlib.Path('../harness');q=pathlib.Path('qa-evidence');out=pathlib.Path('build/github-moderation-ui-evidence');out.mkdir(parents=True,exist_ok=True)
+          sha=lambda data:hashlib.sha256(data).hexdigest()
+          blob=lambda data:hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+          manifest=json.loads((h/'moderation-brand-overlay.json').read_bytes())
+          expected_raw=(q/'moderation-brand-expected.json').read_bytes();expected=json.loads(expected_raw)
+          report=json.loads((q/'moderation-brand-source-verification.json').read_bytes())
+          assert report['status']=='EXACT_MODERATION_BRAND_SOURCE_VERIFIED' and report['phase']=='final'
+          assert report['manifestSha256']==os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256']
+          assert report['fileCount']==manifest['fileCount']==int(os.environ['CURRENT_SOURCE_OVERLAY_FILE_COUNT'])
+          assert report['currentExpectedFileCount']==manifest['currentExpectedFileCount']==len(expected)==int(os.environ['CURRENT_SOURCE_EXPECTED_FILE_COUNT'])
+          assert report['currentExpectedMapSha256']==manifest['currentExpectedMapSha256']==sha(expected_raw)==os.environ['CURRENT_SOURCE_EXPECTED_MAP_SHA256']
+          assert report['files']==manifest['files'] and report['nativeFixtureOwnership']==manifest['nativeFixtureOwnership']
+          for name,wanted in expected.items():
+              path=pathlib.Path(name)
+              assert path.is_file() and not path.is_symlink() and blob(path.read_bytes())==wanted,'Final source differs: '+name
+          layers=[]
+          for name,variable,proof_name,status in [
+           ('ui-fixes.json','UI_FIXES_MANIFEST_SHA256','ui-fixes-verification.json','EXACT_UI_FIXES_VERIFIED'),
+           ('current-follow-up.json','CURRENT_FOLLOW_UP_MANIFEST_SHA256','current-follow-up-verification.json','EXACT_CURRENT_FOLLOW_UP_VERIFIED'),
+           ('qa-test-follow-up.json','QA_TEST_FOLLOW_UP_MANIFEST_SHA256','qa-test-follow-up-verification.json','EXACT_QA_TEST_FOLLOW_UP_VERIFIED'),
+           ('late-overlay.json','LATE_OVERLAY_MANIFEST_SHA256','late-overlay-verification.json','EXACT_LATE_OVERLAY_VERIFIED'),
+           ('moderation-brand-overlay.json','CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256','moderation-brand-source-verification.json','EXACT_MODERATION_BRAND_SOURCE_VERIFIED')]:
+              layer=json.loads((h/name).read_bytes());proof=json.loads((q/proof_name).read_bytes())
+              assert proof['status']==status and proof['manifestSha256']==os.environ[variable]
+              assert proof.get('mode','all')=='all' and proof['fileCount']==layer['fileCount']
+              if 'archiveSha256' in proof:assert proof['archiveSha256']==layer['archiveSha256']
+              layers.append({'manifest':name,'sha256':os.environ[variable],'archiveSha256':layer['archiveSha256'],'fileCount':layer['fileCount']})
+          runtime=json.loads((q/'runtime-data-verification.json').read_bytes());support=json.loads((q/'test-support-verification.json').read_bytes())
+          assert runtime['status']=='EXACT_RUNTIME_DATA_VERIFIED' and runtime['fileCount']==7 and runtime['manifestSha256']==os.environ['TUTAM_RUNTIME_MANIFEST_SHA256']
+          assert support['status']=='EXACT_TEST_SUPPORT_VERIFIED' and support['fileCount']==2 and support['manifestSha256']==os.environ['TUTAM_TEST_SUPPORT_MANIFEST_SHA256']
+          proof={'status':'EXACT_MODERATION_UI_SOURCE_VERIFIED','harnessCommit':os.environ['GITHUB_SHA'],'baseManifestSha256':os.environ['BASE_SOURCE_MANIFEST_SHA256'],'sourceManifestSha256':os.environ['CURRENT_SOURCE_OVERLAY_MANIFEST_SHA256'],'sourceExpectedMapSha256':sha(expected_raw),'verifiedSourceFiles':len(expected),'addedFiles':manifest['addedFileCount'],'layers':layers,'runtimeFiles':runtime['files'],'testSupportFiles':support['files'],'nativeHarnessOverridesApplied':False}
+          (out/'source-overlays-proof.json').write_text(json.dumps(proof,indent=2))
+          for path in q.glob('*verification.json'):(out/path.name).write_bytes(path.read_bytes())
+          (out/'moderation-brand-expected.json').write_bytes(expected_raw)
+          print(json.dumps({'status':proof['status'],'sourceFiles':len(expected),'runtimeFiles':7,'testSupportFiles':2}))
+          PY
+      - uses: actions/setup-node@v6
+        with: {node-version: 24, cache: npm, cache-dependency-path: app/package-lock.json}
+      - name: Install locked packages and the selected existing browser
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps "$TUTAM_UI_BROWSER"
+      - name: Build canonical local Cloudflare application
+        run: npm run build
+      - name: Stage the reviewed browser fixture without changing assertions
+        run: |
+          set -euo pipefail
+          cp ../harness/ui-webkit.config.ts tests/e2e/github-webkit.config.ts
+          if [ "$TUTAM_UI_ENGINE" = webkit ]; then
+            python3 ../harness/stage-webkit-persistent.py . --proof build/github-moderation-ui-evidence/webkit-persistent-stage-proof.json
+          fi
+          cat > tests/e2e/github-moderation-focused.config.ts <<'TS'
+          import { defineConfig } from '@playwright/test';
+          import original from './playwright.config';
+          import webkit from './github-webkit.config';
+          export default defineConfig(process.env.TUTAM_UI_ENGINE === 'webkit' ? webkit : original);
+          TS
+          { uname -a; node --version; npx playwright --version; } > build/github-moderation-ui-evidence/platform.txt
+      - name: Isolate shared backend hosts on the ephemeral hosted runner
+        run: |
+          python3 - <<'PY'
+          import ipaddress,json,os,pathlib,re,socket,subprocess
+          hosts={'quangtu.vn','www.quangtu.vn','media.quangtu.vn','quangtu-web.quangtu-ansitoanthu.workers.dev','quangtu.vercel.app'}
+          hosts.update(re.findall(r'https://([a-z0-9.-]+)',pathlib.Path('src/lib/browser/native-backend-origin.ts').read_text()))
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'moderation-ui-hosts.backup'
+          assert not backup.exists()
+          original=pathlib.Path('/etc/hosts').read_text();backup.write_text(original)
+          lines=[]
+          for line in original.splitlines():
+              address,_,_=line.partition('#');parts=address.split()
+              if len(parts)>1 and any(host.lower() in hosts for host in parts[1:]):
+                  aliases=[host for host in parts[1:] if host.lower() not in hosts]
+                  if aliases:lines.append(parts[0]+'\t'+' '.join(aliases))
+              else:lines.append(line)
+          for host in sorted(hosts):
+              assert re.fullmatch(r'[a-z0-9.-]+',host)
+              lines.extend(['127.0.0.1\t'+host,'::1\t'+host])
+          subprocess.run(['sudo','tee','/etc/hosts'],input='\n'.join(lines)+'\n',text=True,check=True,stdout=subprocess.DEVNULL)
+          proof={}
+          for host in sorted(hosts):
+              addresses=sorted({value[4][0] for value in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
+              assert addresses and all(ipaddress.ip_address(value).is_loopback for value in addresses)
+              proof[host]=addresses
+          pathlib.Path('build/github-moderation-ui-evidence/host-isolation.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - name: Run the exact twenty moderation journeys against one supervised local Worker
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,re,signal,subprocess,sys,time,urllib.request
+          root=pathlib.Path.cwd();out=root/'build/github-moderation-ui-evidence'
+          cases={
+              "moderation keeps rejection reason on failure and never submits duplicate decisions": "tests/e2e/admin-community-moderation.spec.ts",
+              "admin community exposes the approved moderation queues with bounded empty pages": "tests/e2e/admin-community-moderation.spec.ts",
+              "reported content hides through its target revision and resolves the report separately": "tests/e2e/admin-community-moderation.spec.ts",
+              "moderation pagination reuses its principal cache and keeps stale decisions blocked": "tests/e2e/admin-community-moderation.spec.ts",
+              "session loss clears moderation context and closes a private rejection draft": "tests/e2e/admin-community-moderation.spec.ts",
+              "[moderation48h] cold and repeated warm notification links reopen the mindful queue after manual tabs": "tests/e2e/admin-community-moderation.spec.ts",
+              "[moderation48h] bulk review freezes all filtered pages and resumes explicitly at 375px in light mode": "tests/e2e/admin-community-moderation.spec.ts",
+              "[moderation48h] bulk review freezes all filtered pages and resumes explicitly at 375px in dark mode": "tests/e2e/admin-community-moderation.spec.ts",
+              "[moderation48h] bulk review freezes all filtered pages and resumes explicitly at 1440px in light mode": "tests/e2e/admin-community-moderation.spec.ts",
+              "[moderation48h] bulk review freezes all filtered pages and resumes explicitly at 1440px in dark mode": "tests/e2e/admin-community-moderation.spec.ts",
+              "[moderation48h] real local D1 keeps two submissions private until admin approval, rejection or deletion": "tests/e2e/mindful-moderation-48h.spec.ts",
+              "[moderation48h] 403, 429 and 503 preserve one draft and client ID until a real local D1 retry succeeds": "tests/e2e/mindful-moderation-48h.spec.ts",
+              "[moderation48h] review text, pending deadline and Back remain usable at 375px in light mode": "tests/e2e/mindful-moderation-48h.spec.ts",
+              "[moderation48h] review text, pending deadline and Back remain usable at 375px in dark mode": "tests/e2e/mindful-moderation-48h.spec.ts",
+              "[moderation48h] review text, pending deadline and Back remain usable at 1440px in light mode": "tests/e2e/mindful-moderation-48h.spec.ts",
+              "[moderation48h] review text, pending deadline and Back remain usable at 1440px in dark mode": "tests/e2e/mindful-moderation-48h.spec.ts",
+              "local D1 delivers prayers and rejoicing only to the post owner, without duplicate notifications": "tests/e2e/mindful-notifications-local.spec.ts",
+              "both private journal share actions require confirmation and cancel sends no request": "tests/e2e/practice-upgrade.spec.ts",
+              "sharing and template reaction each send one mutation without a feed refetch": "tests/e2e/practice-upgrade.spec.ts",
+              "sends both journal kinds through the iOS bridge and preserves a refused draft for retry": "tests/e2e/practice-upgrade.spec.ts"
+          }
+          files=list(dict.fromkeys(cases.values()))
+          selection=['node','node_modules/@playwright/test/cli.js','test',*files,'--config=tests/e2e/github-moderation-focused.config.ts','--project=desktop-1440-light','--grep=(?:'+'|'.join(re.escape(title) for title in cases)+')$','--workers=1','--retries=0']
+          env=os.environ.copy();env['PLAYWRIGHT_JSON_OUTPUT_FILE']=str(out/'selected.json')
+          subprocess.run(selection+['--list','--reporter=json'],env=env,check=True)
+          selected=json.loads((out/'selected.json').read_text())
+          def specs(suites):
+              return [spec for suite in suites for spec in suite.get('specs',[])]+[spec for suite in suites for spec in specs(suite.get('suites',[]))]
+          listed=specs(selected.get('suites',[]))
+          assert len(listed)==20 and {spec['title'] for spec in listed}==set(cases) and not selected.get('errors'),'Expected exactly the twenty reviewed moderation journeys'
+          for spec in listed:
+              assert spec['file'].replace('\\','/').endswith(cases[spec['title']]) or spec['file'].replace('\\','/').endswith(cases[spec['title']].removeprefix('tests/e2e/')),'Selected journey file differs'
+              assert len(spec['tests'])==1 and spec['tests'][0]['projectName']=='desktop-1440-light','Each journey must select exactly the existing desktop light project'
+          processes=[];result=1;failure=None;readiness={'ready':False,'attempts':[]};stopped=False
+          def members(group):
+              rows=subprocess.run(['/bin/ps','-axo','pid=,pgid=,stat='],capture_output=True,text=True,check=True,timeout=10).stdout.splitlines()
+              return [int(parts[0]) for row in rows if len(parts:=row.split())>=3 and int(parts[1])==group and not parts[2].startswith('Z')]
+          def stop(process,label):
+              group=process.pid
+              assert group>1 and group!=os.getpgrp()
+              before=members(group)
+              if before:
+                  os.killpg(group,signal.SIGTERM)
+                  end=time.monotonic()+10
+                  while members(group) and time.monotonic()<end:time.sleep(.2)
+                  if members(group):
+                      os.killpg(group,signal.SIGKILL)
+                      end=time.monotonic()+3
+                      while members(group) and time.monotonic()<end:time.sleep(.1)
+              remaining=members(group)
+              assert not remaining,'Managed process group still running'
+              return {'label':label,'pid':process.pid,'pgid':group,'before':before,'remaining':remaining,'stopped':True}
+          def interrupted(signum,frame):raise RuntimeError('CI interruption signal '+str(signum))
+          signal.signal(signal.SIGINT,interrupted);signal.signal(signal.SIGTERM,interrupted)
+          try:
+              with (out/'runtime.log').open('w') as runtime_log,(out/'test.log').open('w') as test_log:
+                  runtime=subprocess.Popen(['node','tests/e2e/start-local-runtime.mjs'],stdin=subprocess.DEVNULL,stdout=runtime_log,stderr=subprocess.STDOUT,start_new_session=True)
+                  processes.append((runtime,'runtime'));assert os.getpgid(runtime.pid)==runtime.pid
+                  (out/'runtime-owner.json').write_text(json.dumps({'pid':runtime.pid,'pgid':runtime.pid,'platform':sys.platform},indent=2))
+                  opener=urllib.request.build_opener(urllib.request.ProxyHandler({}));started=time.monotonic();deadline=started+120
+                  while time.monotonic()<deadline:
+                      assert runtime.poll() is None,'Local runtime exited before readiness'
+                      attempt={'elapsedSeconds':round(time.monotonic()-started,2)}
+                      try:
+                          for label,path in [('health','/api/health'),('root','/')]:
+                              remaining=deadline-time.monotonic()
+                              if remaining<=0:raise TimeoutError('Runtime readiness deadline reached')
+                              request=urllib.request.Request('http://127.0.0.1:8787'+path,headers={'Host':'localhost:8787','Cache-Control':'no-store'})
+                              with opener.open(request,timeout=min(3,remaining)) as response:
+                                  body=response.read(262144);status=response.status;kind=response.headers.get('content-type','')
+                              attempt[label]={'status':status,'contentType':kind,'bytes':len(body)}
+                              assert status==200
+                              if label=='root':assert 'text/html' in kind and b'<html' in body.lower()
+                          readiness['ready']=True;readiness['attempts'].append(attempt);break
+                      except Exception as error:
+                          attempt['error']=str(error);readiness['attempts'].append(attempt)
+                      time.sleep(min(1,max(0,deadline-time.monotonic())))
+                  assert readiness['ready'],'Local runtime did not serve health plus root HTML within 120s'
+                  env['PLAYWRIGHT_JSON_OUTPUT_FILE']=str(out/'results.json')
+                  tests=subprocess.Popen(selection+['--reporter=line,json'],env=env,stdout=test_log,stderr=subprocess.STDOUT,start_new_session=True)
+                  processes.append((tests,'test-cli'));result=tests.wait(timeout=900)
+          except Exception as error:
+              failure=str(error)
+          finally:
+              cleanup=[]
+              try:
+                  for process,label in reversed(processes):cleanup.append(stop(process,label))
+                  stopped=True
+              finally:
+                  (out/'runtime-readiness.json').write_text(json.dumps(readiness,indent=2))
+                  (out/'runtime-stop.json').write_text(json.dumps({'stopped':stopped,'groups':cleanup,'failure':failure},indent=2))
+          print(json.dumps({'runtimeReady':readiness['ready'],'testExitCode':result,'stopped':stopped,'failure':failure}))
+          assert stopped and failure is None and result==0,'Moderation twenty-journey test or local runtime failed'
+          PY
+      - name: Require twenty actual passes with zero skips retries or unexpected errors
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib
+          out=pathlib.Path('build/github-moderation-ui-evidence');out.mkdir(parents=True,exist_ok=True)
+          path=out/'results.json';selected_path=out/'selected.json'
+          data=json.loads(path.read_text()) if path.is_file() else {'errors':['Missing results'],'stats':{}}
+          selected=json.loads(selected_path.read_text()) if selected_path.is_file() else {'errors':['Missing selection'],'suites':[]}
+          def specs(suites):
+              return [sp for su in suites for sp in su.get('specs',[])]+[sp for su in suites for sp in specs(su.get('suites',[]))]
+          listed=specs(selected.get('suites',[]));actual=specs(data.get('suites',[]));stats=data.get('stats',{})
+          identity=lambda sp:(sp['file'].replace('\\','/'),sp['title'])
+          valid=(len(listed)==len(actual)==20 and {identity(sp) for sp in listed}=={identity(sp) for sp in actual}
+            and stats.get('expected')==20 and stats.get('unexpected')==0 and stats.get('skipped')==0 and stats.get('flaky')==0
+            and not selected.get('errors') and not data.get('errors'))
+          for spec in actual:
+              valid=valid and spec.get('ok') is True and len(spec.get('tests',[]))==1
+              for test in spec.get('tests',[]):
+                  valid=valid and test.get('projectName')=='desktop-1440-light' and test.get('expectedStatus')=='passed' and test.get('status')=='expected' and len(test.get('results',[]))==1
+                  for result in test.get('results',[]):valid=valid and result.get('status')=='passed' and result.get('retry')==0 and not result.get('errors')
+          readiness=out/'runtime-readiness.json';cleanup=out/'runtime-stop.json';source=out/'source-overlays-proof.json'
+          valid=valid and readiness.is_file() and cleanup.is_file() and source.is_file()
+          if valid:
+              valid=json.loads(readiness.read_text()).get('ready') is True and json.loads(cleanup.read_text()).get('stopped') is True and json.loads(source.read_text()).get('status')=='EXACT_MODERATION_UI_SOURCE_VERIFIED'
+          summary={'engine':os.environ['TUTAM_UI_ENGINE'],'expectedCases':20,'actualCases':len(actual),'stats':stats,'errors':data.get('errors',[]),'gate':'PASSED' if valid else 'FAILED'}
+          (out/'moderation-ui-summary.json').write_text(json.dumps(summary,indent=2))
+          print(json.dumps(summary,indent=2))
+          assert valid,'Twenty-case moderation regression gate did not pass'
+          PY
+      - name: Restore isolated host resolution only after managed runtime stops
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          out=pathlib.Path('build/github-moderation-ui-evidence');owner=out/'runtime-owner.json';state=out/'runtime-stop.json'
+          assert not owner.exists() or state.exists() and json.loads(state.read_text())['stopped'],'Do not restore network while a managed process group is active'
+          backup=pathlib.Path(os.environ['RUNNER_TEMP'])/'moderation-ui-hosts.backup'
+          if backup.exists():
+              subprocess.run(['sudo','cp',str(backup),'/etc/hosts'],check=True)
+              assert pathlib.Path('/etc/hosts').read_bytes()==backup.read_bytes()
+          PY
+      - name: Upload exact source proofs results traces and actual screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: moderation-ui-v4-${{ matrix.engine }}-${{ github.run_id }}
+          path: |
+            app/build/github-moderation-ui-evidence/
+            app/test-results/
+            app/tests/e2e/test-results/
+          retention-days: 7
+          if-no-files-found: error
